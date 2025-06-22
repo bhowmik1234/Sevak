@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-multipart
+sqlalchemy
+psycopg2-binary
+prisma
+pydantic
+openai
+requests
+google-generativeai
+chromadb
+PyPDF2
+qdrant-client
+spacy
+pymupdf==1.22.5
+sentence-transformers
+

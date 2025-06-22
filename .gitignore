@@ -1,0 +1,54 @@
+# VS Code settings
+.vscode/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Byte-compiled / compiled / distribution files
+*.egg
+*.egg-info/
+dist/
+build/
+*.so
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# mypy / pytype / Pyre / Cython debug
+.mypy_cache/
+.pytype/
+.pyre/
+cython_debug/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables / secrets
+*.env
+*.env.*
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
