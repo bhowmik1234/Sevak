@@ -74,6 +74,7 @@ conda activate rag-chatbot
 
 ```bash
 pip install -r requirements.txt
+pip install -m spacy download en_core_web_sm
 ```
 
 ### 4️⃣ Environment Configuration
@@ -117,6 +118,9 @@ QDRANT_API_KEY=your_qdrant_api_key
 ```bash
 # Install Prisma globally
 npm install -g prisma
+
+# Create table
+npx prisma migrate dev
 
 # Generate Prisma client
 prisma generate

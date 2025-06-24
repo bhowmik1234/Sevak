@@ -12,6 +12,6 @@ chromadb
 PyPDF2
 qdrant-client
 spacy
-pymupdf==1.22.5
+pymupdf==1.26.5
 sentence-transformers
 
