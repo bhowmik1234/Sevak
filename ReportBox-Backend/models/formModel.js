@@ -7,7 +7,7 @@ const formData = new Schema({
     maxlength: 50
   },
   email: {
-    type: String, // ✅ Fix: "email" is not a valid type
+    type: String, 
     required: true
   },
   phone: {
@@ -37,6 +37,12 @@ const formData = new Schema({
   mediaURL: {
     type: String,
   },
+  latitude: {
+    type: Number, 
+  },
+  longitude: {
+    type: Number,  
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -44,4 +50,4 @@ const formData = new Schema({
 });
 
 const formModel = model("formData", formData);
-export default formModel; // ✅ ES Module export
+export default formModel; 

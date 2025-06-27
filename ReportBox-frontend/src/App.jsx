@@ -1,73 +1,168 @@
-import React, { useState } from 'react';
-import { Upload, Send, X, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState } from "react";
+import { Upload, Send, X, AlertCircle, CheckCircle } from "lucide-react";
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import AdminDashboard from "./components/AdminPage";
 
-export default function ProblemReportApp() {
+const ProblemReportForm = () => {
+  const navigate = useNavigate();
+  const BASE_URL = import.meta.env.VITE_BASE_URL;
+
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    location: '',
-    category: '',
-    title: '',
-    description: '',
-    priority: 'medium',
-    mediaURL: ''
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    category: "",
+    title: "",
+    description: "",
+    priority: "medium",
+    mediaURL: "",
+    latitude: null,
+    longitude: null,
   });
-  
+
   const [files, setFiles] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [otpStatus, setOtpStatus] = useState(""); 
 
   const categories = [
-    'Infrastructure',
-    'Public Safety',
-    'Environment',
-    'Healthcare',
-    'Education',
-    'Transportation',
-    'Utilities',
-    'Other'
+    "Infrastructure",
+    "Public Safety",
+    "Environment",
+    "Healthcare",
+    "Education",
+    "Transportation",
+    "Utilities",
+    "Other",
   ];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
-  const handleFileUpload = async(e) => {
-    const selectedFiles = Array.from(e.target.files);
-    const validFiles = selectedFiles.filter(file => {
-      const isValidType = file.type.startsWith('image/') || file.type.startsWith('video/');
-      const isValidSize = file.size <= 50 * 1024 * 1024; // 50MB limit
-      return isValidType && isValidSize;
-    });
-    
-    if (validFiles.length === 0) {
-      alert('Please select valid image or video files under 50MB');
+  const getLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
       return;
     }
 
-    setFiles(prev => [...prev, ...validFiles].slice(0, 5)); // Max 5 files
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        setFormData((prev) => ({
+          ...prev,
+          latitude,
+          longitude,
+        }));
+
+        try {
+          const res = await fetch(
+            `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${import.meta.env.VITE_LOCATION_KEY}`
+          );
+          const data = await res.json();
+          const formattedAddress = data.results[0]?.formatted;
+
+          if (formattedAddress) {
+            setFormData((prev) => ({
+              ...prev,
+              location: formattedAddress,
+            }));
+          } else {
+            alert("Address not found from coordinates");
+          }
+        } catch (error) {
+          console.error("Geocoding error:", error);
+          alert("Failed to retrieve address from coordinates");
+        }
+      },
+      (error) => {
+        alert("Unable to retrieve your location");
+        console.error(error);
+      }
+    );
+  };
+
+  const sendOTP = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: formData.phone }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setIsOtpSent(true);
+        setOtpStatus("OTP sent successfully!");
+      } else {
+        setOtpStatus("Failed to send OTP.");
+      }
+    } catch (error) {
+      console.error("OTP send error:", error);
+      setOtpStatus("Error sending OTP.");
+    }
+  };
+
+  const verifyOTP = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: formData.phone, otp }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setOtpStatus("✅ OTP verified successfully!");
+      } else {
+        setOtpStatus("❌ Incorrect OTP.");
+      }
+    } catch (error) {
+      console.error("OTP verify error:", error);
+      setOtpStatus("Error verifying OTP.");
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    const validFiles = selectedFiles.filter((file) => {
+      const isValidType =
+        file.type.startsWith("image/") || file.type.startsWith("video/");
+      const isValidSize = file.size <= 50 * 1024 * 1024; 
+      return isValidType && isValidSize;
+    });
+
+    if (validFiles.length === 0) {
+      alert("Please select valid image or video files under 50MB");
+      return;
+    }
+
+    setFiles((prev) => [...prev, ...validFiles].slice(0, 5)); 
     setIsUploading(true);
 
     try {
-      // Upload only the first file to get the URL
       const file = validFiles[0];
       const data = new FormData();
       data.append("file", file);
       data.append("upload_preset", "ReportBox");
-      data.append("cloud_name", "dc4z5hijt"); 
+      data.append("cloud_name", `${import.meta.env.VITE_CLOUDINARY_KEY}`);
 
-      const fileType = file.type.startsWith("video/") ? "video" : "image"; 
-      const uploadUrl = `https://api.cloudinary.com/v1_1/dc4z5hijt/${fileType}/upload`;
+      const fileType = file.type.startsWith("video/") ? "video" : "image";
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_KEY}/${fileType}/upload`;
 
       const res = await fetch(uploadUrl, {
         method: "POST",
-        body: data
+        body: data,
       });
 
       if (!res.ok) {
@@ -75,86 +170,94 @@ export default function ProblemReportApp() {
       }
 
       const uploadedResult = await res.json();
-      console.log('Cloudinary URL:', uploadedResult.secure_url);
-      
-      // Store the Cloudinary URL in formData
-      setFormData(prev => ({
+      // console.log("Cloudinary URL:", uploadedResult.secure_url);
+
+      setFormData((prev) => ({
         ...prev,
         mediaURL: uploadedResult.secure_url,
       }));
-
     } catch (err) {
-      console.error('Upload error:', err);
-      alert('Failed to upload file. Please try again.');
+      console.error("Upload error:", err);
+      alert("Failed to upload file. Please try again.");
     } finally {
       setIsUploading(false);
     }
   };
 
   const removeFile = (index) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-    // If removing the first file, clear the mediaURL
+    setFiles((prev) => prev.filter((_, i) => i !== index));
     if (index === 0) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        mediaURL: ''
+        mediaURL: "",
       }));
     }
   };
 
-  const handleSubmit = async(e) => {
+  const handleSubmit = async (e) => {
+    console.log("Base URL: ",BASE_URL);
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.location || !formData.category || !formData.title || !formData.description) {
-      alert('Please fill in all required fields');
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.location ||
+      !formData.category ||
+      !formData.title ||
+      !formData.description
+    ) {
+      alert("Please fill in all required fields");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Log the complete form data including mediaURL
-      console.log('Form data being submitted:', formData);
-      
-      const response = await fetch(`http://localhost:3000/api/ReportForm`, {
+      console.log("Form data being submitted:", formData);
+
+      const response = await fetch(`${BASE_URL}/api/ReportForm`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      console.log('Submit response:', result);
-      
+      console.log("Submit response:", result);
+
       setSubmitted(true);
-      
-      // Reset form after 3 seconds
+
       setTimeout(() => {
         setSubmitted(false);
         setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          location: '',
-          category: '',
-          title: '',
-          description: '',
-          priority: 'medium',
-          mediaURL: ''
+          name: "",
+          email: "",
+          phone: "",
+          location: "",
+          category: "",
+          title: "",
+          description: "",
+          priority: "medium",
+          mediaURL: "",
+          latitude: null,
+          longitude: null,
         });
         setFiles([]);
       }, 3000);
-      
     } catch (error) {
       console.error("Submit error:", error);
-      alert('Failed to submit report. Please try again.');
+      alert("Failed to submit report. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openAdminDashboard = () => {
+    navigate("/admin");
   };
 
   if (submitted) {
@@ -162,9 +265,12 @@ export default function ProblemReportApp() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Report Submitted!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Report Submitted!
+          </h2>
           <p className="text-gray-600 mb-4">
-            Your report has been successfully submitted. A government official will review it shortly.
+            Your report has been successfully submitted. A government official
+            will review it shortly.
           </p>
           <p className="text-sm text-gray-500">
             Report ID: #{Math.random().toString(36).substr(2, 9).toUpperCase()}
@@ -181,7 +287,17 @@ export default function ProblemReportApp() {
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-8">
             <h1 className="text-3xl font-bold text-white">Report a Problem</h1>
-            <p className="text-blue-100 mt-2">Help us improve our community by reporting issues</p>
+            <p className="text-blue-100 mt-2">
+              Help us improve our community by reporting issues
+            </p>
+
+            <button
+              onClick={openAdminDashboard}
+              className="absolute top-6 right-6 bg-blue-600 hover:bg-opacity-30 text-white p-2 rounded-lg transition-colors"
+              title="Admin Dashboard"
+            >
+              Admin Login
+            </button>
           </div>
 
           {/* Form Content */}
@@ -218,27 +334,100 @@ export default function ProblemReportApp() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Phone Number
                 </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendOTP}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Send OTP
+                  </button>
+                </div>
+
+                {isOtpSent && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      placeholder="Enter OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md mt-2"
+                    />
+                    <button
+                      type="button"
+                      onClick={verifyOTP}
+                      className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Verify OTP
+                    </button>
+                  </div>
+                )}
+                {otpStatus && (
+                  <p className="text-sm mt-2 text-gray-600">{otpStatus}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Location *
                 </label>
-                <input
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleInputChange}
-                  placeholder="Street, City, State"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                    placeholder="Street, City, State"
+                    className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={getLocation}
+                    disabled={isFetchingLocation}
+                    className={`px-4 py-2 rounded-md text-white ${isFetchingLocation
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700"
+                      }`}
+                  >
+                    {isFetchingLocation ? (
+                      <svg
+                        className="animate-spin h-5 w-5 mx-auto"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                        ></path>
+                      </svg>
+                    ) : (
+                      "Get Current Location"
+                    )}
+                  </button>
+                </div>
+                {formData.latitude && formData.longitude && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Coordinates: {formData.latitude.toFixed(6)},{" "}
+                    {formData.longitude.toFixed(6)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -255,8 +444,10 @@ export default function ProblemReportApp() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Select a category</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -328,13 +519,12 @@ export default function ProblemReportApp() {
                 />
                 <label
                   htmlFor="file-upload"
-                  className={`inline-flex items-center px-4 py-2 rounded-md cursor-pointer transition-colors ${
-                    isUploading 
-                      ? 'bg-gray-400 text-white cursor-not-allowed' 
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
+                  className={`inline-flex items-center px-4 py-2 rounded-md cursor-pointer transition-colors ${isUploading
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
                 >
-                  {isUploading ? 'Uploading...' : 'Select Files'}
+                  {isUploading ? "Uploading..." : "Select Files"}
                 </label>
               </div>
 
@@ -342,8 +532,13 @@ export default function ProblemReportApp() {
               {formData.mediaURL && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
                   <p className="text-sm text-green-700">
-                    ✓ Media uploaded successfully: 
-                    <a href={formData.mediaURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
+                    ✓ Media uploaded successfully:
+                    <a
+                      href={formData.mediaURL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline ml-1"
+                    >
                       View file
                     </a>
                   </p>
@@ -354,7 +549,10 @@ export default function ProblemReportApp() {
               {files.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                   {files.map((file, index) => (
-                    <div key={index} className="relative bg-gray-50 rounded-lg p-3">
+                    <div
+                      key={index}
+                      className="relative bg-gray-50 rounded-lg p-3"
+                    >
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
@@ -400,11 +598,30 @@ export default function ProblemReportApp() {
           <div className="bg-gray-50 px-6 py-4 border-t">
             <div className="flex items-center text-sm text-gray-600">
               <AlertCircle className="w-4 h-4 mr-2" />
-              Your report will be reviewed by relevant government officials within 24-48 hours.
+              Your report will be reviewed by relevant government officials
+              within 24-48 hours.
             </div>
           </div>
         </div>
       </div>
     </div>
+  );
+};
+
+const AppContent = () => {
+  const location = useLocation();
+
+  if (location.pathname === "/admin") {
+    return <AdminDashboard />;
+  }
+
+  return <ProblemReportForm />;
+};
+
+export default function ProblemReportApp() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
