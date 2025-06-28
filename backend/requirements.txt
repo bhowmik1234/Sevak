@@ -15,3 +15,5 @@ spacy
 pymupdf==1.26.5
 sentence-transformers
 
+apscheduler
+pydantic[email]

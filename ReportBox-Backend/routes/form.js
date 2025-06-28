@@ -3,15 +3,27 @@ import formData from '../models/formModel.js';
 
 const router = express.Router();
 
+// GET all reports
 router.get('/ReportForm', async (req, res) => {
   try {
     const users = await formData.find();
-    res.status(200).json(users);
+    res.status(200).json({
+      success: true,
+      message: 'Report data fetched successfully.',
+      data: users,
+      statusCode: 200
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch report data.',
+      errors: { exception: err.message },
+      statusCode: 500
+    });
   }
 });
 
+// POST new report
 router.post('/ReportForm', async (req, res) => {
   try {
     const {
@@ -44,13 +56,18 @@ router.post('/ReportForm', async (req, res) => {
 
     await newData.save();
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      user: newData,
+      message: 'Report submitted successfully.',
+      data: newData,
+      statusCode: 201
     });
   } catch (err) {
     res.status(500).json({
-      message: err.message,
+      success: false,
+      message: 'Failed to submit report.',
+      errors: { exception: err.message },
+      statusCode: 500
     });
   }
 });
