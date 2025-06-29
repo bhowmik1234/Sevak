@@ -4,7 +4,7 @@ from typing import List
 # Load spacy English model
 nlp = spacy.load("en_core_web_sm")
 
-def chunk_text(text: str, max_tokens: int = 500) -> List[str]:
+def chunk_text(text: str, max_tokens: int = 200) -> List[str]:
     doc = nlp(text)
     sentences = [sent.text.strip() for sent in doc.sents]
 
@@ -12,7 +12,7 @@ def chunk_text(text: str, max_tokens: int = 500) -> List[str]:
     chunks = []
     current_chunk = []
     current_length = 0
-    overlap=100
+    overlap=50
 
     for sentence in sentences:
         token_count = len(nlp(sentence))

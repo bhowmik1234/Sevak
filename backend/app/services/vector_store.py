@@ -49,7 +49,7 @@
 # for collection in collections:
 #     client.delete_collection(name=collection.name)
 
-# print("✅ All collections deleted from ChromaDB.")
+# print(" All collections deleted from ChromaDB.")
 
 
 
