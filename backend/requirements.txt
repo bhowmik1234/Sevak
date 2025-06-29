@@ -6,7 +6,7 @@ psycopg2-binary
 prisma
 pydantic
 openai
-requestsAdd commentMore actions
+requestsAdd 
 google-generativeai
 chromadb
 PyPDF2
