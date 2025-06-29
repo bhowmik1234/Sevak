@@ -9,9 +9,9 @@ model = genai.GenerativeModel(os.getenv("GOOGLE_AI_MODEL_NAME"))
 # Generate Response
 def generate_answer(query: str, user_history: list = []):
     '''
-        A Function that takes user query and it's previous conversation and gives Output based on 
-        the current Query.
+    Takes the user's query and recent conversation history to generate a relevant response.
     '''
+
     # Reterive chunk from vector database
     retrieved_chunks = retrieve_similar_chunks(query)
     context = "\n\n".join(retrieved_chunks)
