@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, Scale, Shield, Users, Home as HomeIcon, FileText, Heart, Building, Calculator, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -53,16 +53,14 @@ function HomePage() {
         setIsLoaded(true);
       }
 
-      // Parallax effect for hero section
       if (heroRef.current) {
         heroRef.current.style.transform = `translateY(${scrollY * 0.3}px)`;
       }
     };
 
     window.addEventListener('scroll', handleScroll);
-    handleScroll(); // Initial check
+    handleScroll(); 
 
-    // Keyboard navigation
     const handleKeyPress = (e) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
@@ -140,7 +138,6 @@ function HomePage() {
   };
 
   const playHoverSound = () => {
-    // Resume audio context if it's suspended (required by some browsers)
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().then(() => {
         createHoverSound();
@@ -151,7 +148,6 @@ function HomePage() {
   };
 
   const playClickSound = () => {
-    // Resume audio context if it's suspended
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().then(() => {
         createClickSound();
@@ -175,7 +171,7 @@ function HomePage() {
   const handleCategoryClick = (index) => {
     if (isTransitioning) return;
     
-    // Play click sound
+
     playClickSound();
     
     setIsTransitioning(true);
@@ -189,8 +185,6 @@ function HomePage() {
         categoryElement.style.transform = '';
         setIsTransitioning(false);
         console.log(`Selected ${categories[index].name} - ${categories[index].page}`);
-        // Handle navigation here - you can emit an event or call a navigation function
-        // Example: onCategorySelect?.(categories[index]);
       }, 300);
     } else {
       setTimeout(() => {
@@ -497,67 +491,6 @@ const handleChatClick = () => {
         </button>
       </div>
 
-      <style jsx>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .animate-fade-in {
-          animation: fade-in 1s ease-out forwards;
-        }
-        
-        .animate-fade-in-delay-1 {
-          animation: fade-in 1s ease-out 0.3s forwards;
-          opacity: 0;
-        }
-        
-        .animate-fade-in-delay-2 {
-          animation: fade-in 1s ease-out 0.6s forwards;
-          opacity: 0;
-        }
-        
-        .animate-fade-in-delay-3 {
-          animation: fade-in 1s ease-out 0.9s forwards;
-          opacity: 0;
-        }
-
-        /* Hollow A styling */
-        .hollow-a {
-          color: transparent;
-          -webkit-text-stroke: 3px rgba(255, 255, 255, 0.8);
-          text-stroke: 3px rgba(255, 255, 255, 0.8);
-          background: transparent;
-          text-shadow: 
-            0 0 20px rgba(59, 130, 246, 0.6),
-            0 0 40px rgba(139, 92, 246, 0.4),
-            0 0 60px rgba(59, 130, 246, 0.3);
-          position: relative;
-        }
-
-        .hollow-a::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(45deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
-          -webkit-background-clip: text;
-          background-clip: text;
-          z-index: -1;
-        }
-
-        /* Additional glow effect for hollow A */
-        .sevak-title .hollow-a {
-          filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-          .hollow-a {
-            -webkit-text-stroke: 2px rgba(255, 255, 255, 0.8);
-            text-stroke: 2px rgba(255, 255, 255, 0.8);
-          }
-        }
-      `}</style>
     </div>
   );
 }

@@ -49,6 +49,9 @@ cython_debug/
 # Logs
 *.log
 
+# Node modules in any folder
+**/node_modules/
+
 # OS-specific
 .DS_Store
 Thumbs.db

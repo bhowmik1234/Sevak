@@ -5,12 +5,10 @@ from app.utils.cleanup import delete_old_messages
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 origins = [
-    "http://localhost:5173",
-    "https://localhost.tiangolo.com",
-    "http://localhost",
-    "http://localhost:8080",
+    os.getenv("FRONTEND_URL"),
 ]
 
 app = FastAPI()

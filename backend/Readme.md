@@ -55,6 +55,7 @@ cd sevak-backend
 
 **Using Python venv:**
 ```bash
+cd backend
 python -m venv venv
 
 # Activate environment
@@ -74,7 +75,8 @@ conda activate rag-chatbot
 
 ```bash
 pip install -r requirements.txt
-pip install -m spacy download en_core_web_sm
+pip instal pymupdf
+python -m spacy download en_core_web_sm
 ```
 
 ### 4️⃣ Environment Configuration
@@ -126,7 +128,7 @@ npx prisma migrate dev
 prisma generate
 
 # To Watch Database
-npx prisma studio
+prisma studio
 ```
 
 ### 6️⃣ Optional: Qdrant with Docker

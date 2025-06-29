@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import stateEmergencyContacts from "../context/contact"; // Adjust the import path as necessary
+import { useEffect, useState } from "react";
+import stateEmergencyContacts from "../context/contact";
 
 const EmergencyContact = () => {
   const [location, setLocation] = useState({ state: "", country: "" });

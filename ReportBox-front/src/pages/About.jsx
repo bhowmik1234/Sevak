@@ -1,4 +1,3 @@
-import React from 'react';
 import { Scale, MessageCircle, FileText, Phone, Shield, Users, Zap, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,7 +6,7 @@ const About = () => {
     const navigate=useNavigate();
 
     const handleChat=()=>{
-        navigate('/');
+        navigate('/chat');
     }
 
     const handleReport=()=>{
@@ -51,7 +50,7 @@ const About = () => {
             <Scale className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
-            Legal<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">AI</span>
+            SEVAK
           </h1>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
             Empowering citizens with instant access to legal knowledge, comprehensive reporting systems, 

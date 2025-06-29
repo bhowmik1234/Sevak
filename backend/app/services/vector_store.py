@@ -64,13 +64,14 @@ from qdrant_client.models import VectorParams, Distance, PointStruct
 model = SentenceTransformer(os.getenv("EMBEDDINGS_MODEL", "BAAI/bge-small-en-v1.5"))
 
 # Connect to Qdrant (local server)
-qdrant_client = QdrantClient(host="localhost", port=6333)
+# qdrant_client = QdrantClient(host="localhost", port=6333)
 
 # use this in case of cloud database
-# qdrant_client = QdrantClient(
-#     url="QDRANT_CLUSTER_URL",
-#     api_key="QDRANT_API_KEY"
-# )
+qdrant_client = QdrantClient(
+    url=os.getenv("QDRANT_CLUSTER_URL"),
+    api_key=os.getenv("QDRANT_API_KEY")
+)
+
 
 # Define collection name and vector size
 COLLECTION_NAME = "pdf_chunks"

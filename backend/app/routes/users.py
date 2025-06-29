@@ -18,6 +18,7 @@ async def create_user(user: UserCreateRequest):
     Create a new user with name, email, and password.
     """
     existing_user = await prisma.user.find_unique(where={"email": user.email})
+    print(existing_user)
     if existing_user:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -30,7 +31,7 @@ async def create_user(user: UserCreateRequest):
         )
 
     user_id = str(uuid.uuid4())
-
+    print("here 1")
     await prisma.user.create(
         data={
             "id": user_id,
@@ -39,7 +40,7 @@ async def create_user(user: UserCreateRequest):
             "password": user.password  
         }
     )
-
+    print("here 2")
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content={

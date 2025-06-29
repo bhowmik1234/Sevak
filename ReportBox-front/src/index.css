@@ -1,3 +1,98 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+
+@keyframes fade-in {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 1s ease-out forwards;
+        }
+        
+        .animate-fade-in-delay-1 {
+          animation: fade-in 1s ease-out 0.3s forwards;
+          opacity: 0;
+        }
+        
+        .animate-fade-in-delay-2 {
+          animation: fade-in 1s ease-out 0.6s forwards;
+          opacity: 0;
+        }
+        
+        .animate-fade-in-delay-3 {
+          animation: fade-in 1s ease-out 0.9s forwards;
+          opacity: 0;
+        }
+
+        /* Hollow A styling */
+        .hollow-a {
+          color: transparent;
+          -webkit-text-stroke: 3px rgba(255, 255, 255, 0.8);
+          text-stroke: 3px rgba(255, 255, 255, 0.8);
+          background: transparent;
+          text-shadow: 
+            0 0 20px rgba(59, 130, 246, 0.6),
+            0 0 40px rgba(139, 92, 246, 0.4),
+            0 0 60px rgba(59, 130, 246, 0.3);
+          position: relative;
+        }
+
+        .hollow-a::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(45deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+          -webkit-background-clip: text;
+          background-clip: text;
+          z-index: -1;
+        }
+
+        /* Additional glow effect for hollow A */
+        .sevak-title .hollow-a {
+          filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+          .hollow-a {
+            -webkit-text-stroke: 2px rgba(255, 255, 255, 0.8);
+            text-stroke: 2px rgba(255, 255, 255, 0.8);
+          }
+        }
+
+         .no-scrollbar {
+              -ms-overflow-style: none;
+              scrollbar-width: none;
+            }
+            
+            .no-scrollbar::-webkit-scrollbar {
+              display: none;
+            }
+            
+            .formatted-message {
+              text-align: left;
+            }
+            
+            .formatted-message strong {
+              font-weight: 600;
+            }
+            
+            .formatted-message ol {
+              padding-left: 1rem;
+            }
+            
+            .formatted-message ul {
+              padding-left: 1rem;
+            }
+            
+            .formatted-message li {
+              margin-bottom: 0.5rem;
+            }
+            
+            .formatted-message code {
+              font-family: 'Courier New', monospace;
+            }
