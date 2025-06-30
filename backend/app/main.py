@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.db.prisma_client import prisma
-from app.routes import upload, chat, users, auth
+from app.routes import  chat, users, auth
 from app.utils.cleanup import delete_old_messages
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -24,8 +24,12 @@ app.add_middleware(
 )
 
 # Mount routers
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
+
 app.include_router(users.router, prefix="/users", tags=["Users"])
-app.include_router(upload.router, prefix="/admin", tags=["Upload"])
+# app.include_router(upload.router, prefix="/admin", tags=["Upload"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
