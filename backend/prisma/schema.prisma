@@ -8,11 +8,11 @@ datasource db {
 }
 
 model User {
-  id      String    @id @default(uuid())
-  messages Message[]
+  id       String    @id @default(uuid())
   name     String
-  email    String  @unique
+  email    String    @unique
   password String
+  messages Message[]
 }
 
 model Message {
