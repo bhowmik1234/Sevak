@@ -1,0 +1,10 @@
+# render.yaml
+services:
+  - type: web
+    name: fastapi-service
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: FRONTEND_URL
+        value: "https://your-frontend-url.com"
