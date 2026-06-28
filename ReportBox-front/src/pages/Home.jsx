@@ -184,12 +184,12 @@ function HomePage() {
       setTimeout(() => {
         categoryElement.style.transform = '';
         setIsTransitioning(false);
-        console.log(`Selected ${categories[index].name} - ${categories[index].page}`);
+        navigate(`/chat?area=${encodeURIComponent(categories[index].name)}`);
       }, 300);
     } else {
       setTimeout(() => {
         setIsTransitioning(false);
-        console.log(`Selected ${categories[index].name} - ${categories[index].page}`);
+        navigate(`/chat?area=${encodeURIComponent(categories[index].name)}`);
       }, 300);
     }
   };

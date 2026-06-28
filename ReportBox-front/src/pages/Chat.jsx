@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Send,
   User,
@@ -162,8 +162,10 @@ function Chat() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const hasLoadedRef = useRef(false);
+  const seededAreaRef = useRef(null);
 
   const { language, setLanguage, speechCode, languages } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -246,6 +248,24 @@ function Chat() {
 
   // Stop any ongoing speech when leaving the page.
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  // Practice-area deep link: /chat?area=Cyber%20Law opens a fresh conversation
+  // pre-seeded with a question about that legal area, then clears the param.
+  useEffect(() => {
+    if (!storageReady || !token) return;
+    const area = searchParams.get("area");
+    if (!area) {
+      seededAreaRef.current = null;
+      return;
+    }
+    if (seededAreaRef.current === area) return;
+    seededAreaRef.current = area;
+    startConversationWithPrompt(
+      `I need help with ${area} in India. What are my rights, which laws apply, and what practical steps should I take?`
+    );
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageReady, token, searchParams]);
 
   const loadConversations = async () => {
     setIsLoading(true);
@@ -365,6 +385,19 @@ function Chat() {
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  // Open a brand-new conversation pre-seeded with a question. Used by the
+  // "Practice Areas" entries on the home page and navbar (/chat?area=...).
+  const startConversationWithPrompt = (prompt) => {
+    window.speechSynthesis?.cancel();
+    setSpeakingId(null);
+    const conv = makeConversation();
+    setConversations((prev) => [conv, ...prev]);
+    setActiveId(conv.id);
+    setSidebarOpen(false);
+    setError(null);
+    handleSendMessage(prompt, conv.id);
+  };
+
   const handleSelectConversation = (id) => {
     window.speechSynthesis?.cancel();
     setSpeakingId(null);
@@ -461,7 +494,7 @@ function Chat() {
     }
   };
 
-  const handleSendMessage = async (overrideText) => {
+  const handleSendMessage = async (overrideText, targetConvId) => {
     const content = (
       typeof overrideText === "string" ? overrideText : inputMessage
     ).trim();
@@ -469,8 +502,9 @@ function Chat() {
       return;
     }
 
-    // Make sure there is an active conversation to write into.
-    let convId = activeId;
+    // Send into a specific conversation when given (e.g. a practice-area seed);
+    // otherwise the active one, creating one if there is none.
+    let convId = targetConvId || activeId;
     if (!convId) {
       const conv = makeConversation();
       setConversations((prev) => [conv, ...prev]);

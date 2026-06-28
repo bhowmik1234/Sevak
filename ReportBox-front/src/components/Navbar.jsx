@@ -125,15 +125,15 @@ const Navbar = () => {
               }`}>
                 <div className="py-2">
                   {legalCategories.map((category, index) => (
-                    <a
+                    <Link
                       key={category}
-                      href={`#${category.toLowerCase().replace(' ', '-')}`}
+                      to={`/chat?area=${encodeURIComponent(category)}`}
                       className="block px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all duration-200 border-l-2 border-transparent hover:border-blue-400"
                       onClick={() => setIsCategoriesOpen(false)}
                       style={{ animationDelay: `${index * 0.05}s` }}
                     >
                       {category}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -270,9 +270,9 @@ const Navbar = () => {
                 : 'max-h-0 opacity-0 overflow-hidden'
             }`}>
               {legalCategories.map((category) => (
-                <a
+                <Link
                   key={category}
-                  href={`#${category.toLowerCase().replace(' ', '-')}`}
+                  to={`/chat?area=${encodeURIComponent(category)}`}
                   className="block py-2 text-slate-400 hover:text-blue-400 transition-colors duration-200 border-l-2 border-transparent hover:border-blue-400 pl-3"
                   onClick={() => {
                     setIsCategoriesOpen(false);
@@ -280,7 +280,7 @@ const Navbar = () => {
                   }}
                 >
                   {category}
-                </a>
+                </Link>
               ))}
             </div>
           </div>
