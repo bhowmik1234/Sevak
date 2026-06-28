@@ -7,7 +7,6 @@ __pycache__/
 *$py.class
 
 # Virtual environments
-.env
 .venv
 env/
 venv/
@@ -42,11 +41,10 @@ cython_debug/
 # Jupyter
 .ipynb_checkpoints/
 
-# Environment variables / secrets
+# Environment variables / secrets (but keep example templates)
+.env
 *.env
 *.env.*
-.env
-# ...but allow committed example templates (no real secrets).
 !.env.example
 !**/.env.example
 
@@ -59,3 +57,12 @@ cython_debug/
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Editor / IDE
+.idea/
+
+# Deploy tooling
+.vercel/
+
+# Generated ingestion state (re-created when PDFs are loaded)
+backend/law/.loaded.txt
