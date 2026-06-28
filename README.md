@@ -55,8 +55,12 @@ sevak/
 ├── backend/            # FastAPI — Legal Assistant + RAG
 ├── ReportBox-Backend/  # Express — reports / OTP / admin
 ├── ReportBox-front/    # React frontend (serves both products)
+├── DEPLOY.md           # Free-tier deployment guide
 └── README.md
 ```
+
+> **Deploying?** See [DEPLOY.md](./DEPLOY.md) for a step-by-step free-tier setup
+> (GitHub Pages + Render + Vercel + Neon + Atlas + Qdrant + Gemini).
 
 ---
 
@@ -99,9 +103,18 @@ See [RAG pipeline](#rag-pipeline) below for the provider/verification env vars.
 | ------ | ------------------- | ------------- | -------------------------------- |
 | POST   | `/users/signup`     | —             | Register, returns JWT            |
 | POST   | `/auth/login`       | —             | Login, returns JWT               |
-| POST   | `/chat/message`     | Bearer JWT    | Ask the legal assistant          |
+| POST   | `/chat/message`     | Bearer JWT    | Ask the legal assistant (accepts `language`) |
 | GET    | `/chat/history`     | Bearer JWT    | Current user's chat history       |
+| POST   | `/chat/feedback`    | Bearer JWT    | Thumbs up/down on an answer       |
+| GET    | `/documents/templates` | —          | List document templates + fields  |
+| POST   | `/documents/generate`  | Bearer JWT | Draft a legal document (FIR/RTI/…) |
 | POST   | `/admin/upload-pdf` | `X-Admin-Key` | Ingest a PDF (URL or file upload) |
+
+`POST /chat/message` and `POST /documents/generate` accept an optional
+`language` field (e.g. `"Hindi"`, `"Tamil"`); the LLM is instructed to respond
+in that language. The `/chat/feedback` table is new — run
+`prisma generate && prisma migrate dev` so the `Feedback` model is created
+(feedback is best-effort and never blocks the chat if the table is missing).
 
 ### RAG pipeline
 
@@ -174,9 +187,10 @@ npm start          # nodemon index.js
 
 | Method | Path                   | Auth        | Purpose                       |
 | ------ | ---------------------- | ----------- | ----------------------------- |
-| POST   | `/api/ReportForm`      | —           | Submit a report (public)      |
+| POST   | `/api/ReportForm`      | —           | Submit a report (returns `trackingId`) |
 | GET    | `/api/ReportForm`      | Bearer JWT  | List reports (admin)          |
-| PATCH  | `/api/ReportForm/:id`  | Bearer JWT  | Update report status (admin)  |
+| GET    | `/api/ReportForm/track/:trackingId` | — | Public status + timeline for a report |
+| PATCH  | `/api/ReportForm/:id`  | Bearer JWT  | Update report status (admin, appends to timeline) |
 | POST   | `/api/admin/login`     | —           | Admin login, returns JWT      |
 | POST   | `/api/send-otp`        | rate-limited| Send phone OTP                |
 | POST   | `/api/verify-otp`      | rate-limited| Verify phone OTP              |
@@ -199,6 +213,20 @@ npm run dev
 | `VITE_BASE_URL`        | Base URL of the Express backend (reports / OTP / admin)|
 | `VITE_CLOUDINARY_KEY`  | Cloudinary cloud name for media uploads               |
 | `VITE_LOCATION_KEY`    | OpenCage geocoding API key                            |
+
+### Key pages
+
+| Route            | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `/chat`          | Legal assistant — multi-conversation history, language select, listen-aloud, answer feedback, guided scenarios |
+| `/documents`     | Draft a legal document (FIR, RTI, consumer complaint, legal notice) and export it |
+| `/track`         | Citizens track a submitted report by its tracking ID            |
+| `/legal-aid`     | Free legal-aid directory + national helplines                  |
+| `/emergency-contact` | National + state emergency numbers (tap to call)           |
+
+A site-wide **Quick Exit** button (also bound to `Esc`) lets at-risk users leave
+the site instantly. The answer language is shared across chat and documents and
+remembered in `localStorage`.
 
 ---
 

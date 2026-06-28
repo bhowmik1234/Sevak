@@ -45,6 +45,10 @@ cython_debug/
 # Environment variables / secrets
 *.env
 *.env.*
+.env
+# ...but allow committed example templates (no real secrets).
+!.env.example
+!**/.env.example
 
 # Logs
 *.log

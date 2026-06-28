@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useState } from 'react';
 
 const Signup = () => {
@@ -84,9 +84,9 @@ const Signup = () => {
           <div className="mt-6 text-center">
             <p className="text-slate-300 text-sm">
               Already have an account? 
-              <a href="/login" className="text-blue-300 hover:text-blue-200 font-medium ml-1 transition-colors">
+              <Link to="/login" className="text-blue-300 hover:text-blue-200 font-medium ml-1 transition-colors">
                 Sign In
-              </a>
+              </Link>
             </p>
           </div>
         </div>

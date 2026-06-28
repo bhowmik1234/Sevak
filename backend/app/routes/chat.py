@@ -16,6 +16,15 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+    # Optional answer language (e.g. "Hindi", "Tamil"). Defaults to English.
+    language: str = Field(default="English", max_length=40)
+
+
+class FeedbackRequest(BaseModel):
+    rating: str = Field(pattern="^(up|down)$")
+    question: str = Field(default="", max_length=4000)
+    answer: str = Field(default="", max_length=8000)
+    comment: str = Field(default="", max_length=2000)
 
 
 # Route that chats with the user
@@ -32,7 +41,7 @@ async def chat(
             order={"timestamp": "asc"}
         )
         past_turns = [(m.user, m.bot) for m in history[-10:]]  # last 10 turns
-        result = generate_answer(req.message, past_turns)
+        result = generate_answer(req.message, past_turns, language=req.language)
         answer = result["reply"]
 
         await prisma.message.create(data={
@@ -75,6 +84,37 @@ def serialize_message(message):
         if isinstance(value, datetime):
             data[key] = value.isoformat()
     return data
+
+
+@router.post("/feedback")
+@limiter.limit("60/minute")
+async def feedback(
+    request: Request,
+    req: FeedbackRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Record a thumbs up/down on an answer. Best-effort: never blocks the UI."""
+    try:
+        await prisma.feedback.create(data={
+            "userId": user_id,
+            "rating": req.rating,
+            "question": req.question,
+            "answer": req.answer,
+            "comment": req.comment,
+        })
+    except Exception:
+        # The Feedback table may not be migrated yet, or the write may fail.
+        # Feedback is non-critical, so log and still report success to the client.
+        logger.exception("Failed to persist feedback (continuing).")
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "success": True,
+            "message": "Thanks for the feedback.",
+            "status_code": 200,
+        },
+    )
 
 
 @router.get("/history")

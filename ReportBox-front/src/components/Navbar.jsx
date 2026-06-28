@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Menu, X, Home, Info, ChevronDown, MessageCircle, User, FileText, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Menu, X, Home, Info, ChevronDown, MessageCircle, User, FileText, LogOut, Scale, Search, FileSignature } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useEffect } from 'react';
 
 const Navbar = () => {
@@ -35,6 +35,14 @@ const Navbar = () => {
     navigate('/emergency-contact');
   };
 
+  const handleDocsClick = () => {
+    navigate('/documents');
+  };
+
+  const handleTrackClick = () => {
+    navigate('/track');
+  };
+
   const handleLogout = () => {
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('token');
@@ -58,6 +66,7 @@ const Navbar = () => {
 
   const menuItems = [
     { name: 'Home', icon: Home, href: '/' },
+    { name: 'Legal Aid', icon: Scale, href: '/legal-aid' },
     { name: 'About', icon: Info, href: '/about' }
   ];
 
@@ -79,7 +88,7 @@ const Navbar = () => {
           {/* Logo/Brand - Left */}
           <div className="flex-shrink-0">
             <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 hover:from-blue-300 hover:to-indigo-300 transition-all duration-300 tracking-wide">
-              <a href="/">SEVAK</a>
+              <Link to="/">SEVAK</Link>
             </h1>
           </div>
 
@@ -88,14 +97,14 @@ const Navbar = () => {
             {menuItems.map((item) => {
               const IconComponent = item.icon;
               return (
-                <a
+                <Link
                   key={item.name}
-                  href={item.href}
+                  to={item.href}
                   className="flex items-center space-x-2 text-slate-300 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:bg-slate-800/50 group"
                 >
                   <IconComponent size={18} className="group-hover:scale-110 transition-transform duration-300" />
                   <span>{item.name}</span>
-                </a>
+                </Link>
               );
             })}
             
@@ -148,12 +157,28 @@ const Navbar = () => {
               <FileText size={18} className="group-hover:scale-110 transition-transform duration-300" />
               <span>Report</span>
             </button>
-            <button 
+            <button
               onClick={handleChatClick}
               className="flex items-center space-x-2 text-slate-300 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20 group"
             >
               <MessageCircle size={18} className="group-hover:scale-110 transition-transform duration-300" />
               <span>Chat</span>
+            </button>
+
+            <button
+              onClick={handleDocsClick}
+              className="flex items-center space-x-2 text-slate-300 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20 group"
+            >
+              <FileSignature size={18} className="group-hover:scale-110 transition-transform duration-300" />
+              <span>Documents</span>
+            </button>
+
+            <button
+              onClick={handleTrackClick}
+              className="flex items-center space-x-2 text-slate-300 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20 group"
+            >
+              <Search size={18} className="group-hover:scale-110 transition-transform duration-300" />
+              <span>Track</span>
             </button>
 
             {userInfo ? (
@@ -185,9 +210,9 @@ const Navbar = () => {
                 </div>
               </div>
             ) : (
-              <a href="/login" className="text-blue-900 bg-blue-500 px-4 py-2 rounded-lg hover:underline">
+              <Link to="/login" className="text-blue-900 bg-blue-500 px-4 py-2 rounded-lg hover:underline">
                 Login
-              </a>
+              </Link>
             )}
           </div>
 
@@ -217,15 +242,15 @@ const Navbar = () => {
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             return (
-              <a
+              <Link
                 key={item.name}
-                href={item.href}
+                to={item.href}
                 className="flex items-center space-x-3 text-slate-300 hover:text-white hover:bg-slate-800/50 px-3 py-3 rounded-lg font-medium transition-all duration-300"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <IconComponent size={20} />
                 <span>{item.name}</span>
-              </a>
+              </Link>
             );
           })}
           
@@ -277,14 +302,30 @@ const Navbar = () => {
             <span>Report</span>
           </button>
           
-          <button 
+          <button
             onClick={handleChatClick}
             className="flex items-center space-x-3 text-slate-300 hover:text-white hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20 w-full px-3 py-3 rounded-lg font-medium transition-all duration-300"
           >
             <MessageCircle size={20} />
             <span>Chat</span>
           </button>
-          
+
+          <button
+            onClick={handleDocsClick}
+            className="flex items-center space-x-3 text-slate-300 hover:text-white hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20 w-full px-3 py-3 rounded-lg font-medium transition-all duration-300"
+          >
+            <FileSignature size={20} />
+            <span>Documents</span>
+          </button>
+
+          <button
+            onClick={handleTrackClick}
+            className="flex items-center space-x-3 text-slate-300 hover:text-white hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20 w-full px-3 py-3 rounded-lg font-medium transition-all duration-300"
+          >
+            <Search size={20} />
+            <span>Track Report</span>
+          </button>
+
           {userInfo ? (
             <>
               <a
@@ -304,13 +345,13 @@ const Navbar = () => {
               </button>
             </>
           ) : (
-            <a
-              href="/login"
+            <Link
+              to="/login"
               className="flex items-center justify-center text-blue-900 bg-blue-500 px-3 py-3 rounded-lg hover:underline font-medium transition-all duration-300"
               onClick={() => setIsMenuOpen(false)}
             >
               Login
-            </a>
+            </Link>
           )}
         </div>
       </div>

@@ -8,7 +8,7 @@ import {
   MapPin,
   Loader,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const Report = () => {
   const BASE_URL = import.meta.env.VITE_BASE_URL;
@@ -30,6 +30,7 @@ const Report = () => {
   const [files, setFiles] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [trackingId, setTrackingId] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [otp, setOtp] = useState("");
@@ -220,32 +221,33 @@ const Report = () => {
       }
 
       const result = await response.json();
-      console.log(result);
+      setTrackingId(result.trackingId || result.data?.trackingId || "");
       setSubmitted(true);
-
-      setTimeout(() => {
-        setSubmitted(false);
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          location: "",
-          category: "",
-          title: "",
-          description: "",
-          priority: "medium",
-          mediaURL: "",
-          latitude: null,
-          longitude: null,
-        });
-        setFiles([]);
-      }, 3000);
     } catch (error) {
       console.error("Submit error:", error);
       alert("Failed to submit report. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
+    setSubmitted(false);
+    setTrackingId("");
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      location: "",
+      category: "",
+      title: "",
+      description: "",
+      priority: "medium",
+      mediaURL: "",
+      latitude: null,
+      longitude: null,
+    });
+    setFiles([]);
   };
 
   if (submitted) {
@@ -260,9 +262,45 @@ const Report = () => {
             Your report has been successfully submitted. A government official
             will review it shortly.
           </p>
-          <p className="text-sm text-slate-500">
-            Report ID: #{Math.random().toString(36).substr(2, 9).toUpperCase()}
-          </p>
+
+          {trackingId && (
+            <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 mb-4">
+              <p className="text-xs text-slate-500 mb-1">
+                Save your tracking ID
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-lg font-mono font-bold text-slate-800">
+                  {trackingId}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(trackingId)}
+                  className="text-blue-600 hover:underline text-xs"
+                >
+                  Copy
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Use it to check your report's status anytime.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/track"
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium"
+            >
+              Track this report
+            </Link>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-5 py-2.5 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-all duration-200 font-medium"
+            >
+              Submit another
+            </button>
+          </div>
         </div>
       </div>
     );

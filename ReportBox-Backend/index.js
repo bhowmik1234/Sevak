@@ -16,7 +16,21 @@ const corsOptions = process.env.FRONTEND_URL
 app.use(cors(corsOptions));
 
 app.use(express.json());
-connectDB();
+
+// Ensure the (cached) DB connection is ready before handling any request.
+// Works for both the long-lived local/Render server and Vercel serverless.
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch {
+    res.status(503).json({
+      success: false,
+      message: 'Database unavailable. Please try again shortly.',
+      statusCode: 503,
+    });
+  }
+});
 
 app.use('/api', form);
 app.use('/api', otpRoutes);
@@ -26,6 +40,12 @@ app.get('/', (req, res) => {
   res.send('hello');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// On Vercel the platform invokes the exported app, so binding a port is wrong.
+// Only listen when running directly (local dev / Render).
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+export default app;

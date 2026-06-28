@@ -3,7 +3,9 @@ services:
   - type: web
     name: sevak-fastapi
     env: python
-    buildCommand: "pip install -r requirements.txt && prisma generate"
+    # `prisma migrate deploy` applies pending migrations (incl. the Feedback
+    # table) to the database during the build.
+    buildCommand: "pip install -r requirements.txt && prisma generate && prisma migrate deploy"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       # Set these in the Render dashboard (sync: false = not stored in repo).
@@ -15,11 +17,19 @@ services:
         sync: false
       - key: ADMIN_API_KEY
         sync: false
-      # Vector DB — use QDRANT_URL + QDRANT_API_KEY for Qdrant Cloud.
-      - key: QDRANT_URL
+      # Vector DB — Pinecone serverless (always-on, free starter plan).
+      - key: VECTOR_STORE
+        value: "pinecone"
+      - key: PINECONE_API_KEY
         sync: false
-      - key: QDRANT_API_KEY
-        sync: false
+      # Defaults match the free serverless starter; the index auto-creates on
+      # first ingest with the embedder's dimension (Gemini = 768).
+      - key: PINECONE_INDEX
+        value: "sevak"
+      - key: PINECONE_CLOUD
+        value: "aws"
+      - key: PINECONE_REGION
+        value: "us-east-1"
       - key: FRONTEND_URL
         sync: false
       # --- RAG: free profile (all via Gemini API, no local ML) ---

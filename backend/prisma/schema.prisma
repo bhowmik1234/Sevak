@@ -8,17 +8,30 @@ datasource db {
 }
 
 model User {
-  id       String    @id @default(uuid())
+  id       String     @id @default(uuid())
   name     String
-  email    String    @unique
+  email    String     @unique
   password String
   messages Message[]
+  feedback Feedback[]
 }
 
 model Message {
   id        String   @id @default(uuid())
   user      String
   bot       String
+  timestamp DateTime @default(now())
+  userId    String
+  userRef   User     @relation(fields: [userId], references: [id])
+}
+
+// Thumbs up/down on an assistant answer. Used to tune the RAG pipeline.
+model Feedback {
+  id        String   @id @default(uuid())
+  rating    String // "up" | "down"
+  question  String   @default("")
+  answer    String   @default("")
+  comment   String   @default("")
   timestamp DateTime @default(now())
   userId    String
   userRef   User     @relation(fields: [userId], references: [id])

@@ -10,6 +10,9 @@ import MainLayout from "./components/MainLayout";
 import BlankLayout from "./components/BlankLayout";
 import EmergencyContact from "./pages/EmergencyContact";
 import About from "./pages/About";
+import Documents from "./pages/Documents";
+import TrackReport from "./pages/TrackReport";
+import LegalAid from "./pages/LegalAid";
 
 
 const AllRoutes = () => {
@@ -19,8 +22,11 @@ const AllRoutes = () => {
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/report" element={<Report />} />
+        <Route path="/track" element={<TrackReport />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/chat" element={<Chat />} />
+        <Route path="/documents" element={<Documents />} />
+        <Route path="/legal-aid" element={<LegalAid />} />
         <Route path="/emergency-contact" element={<EmergencyContact />} />
         <Route path='/about' element={<About />}/>
       </Route>

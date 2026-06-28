@@ -42,9 +42,11 @@ insufficient for part of the question, say so plainly.
 
 Guidelines:
 - Identify the relevant Indian laws found in the context.
-- For each, explain in simple English: what it protects, what is criminalized, \
+- For each, explain in simple words: what it protects, what is criminalized, \
 the punishment, and the practical steps the user should take.
 - Be supportive and clear. Answer in points, using new lines.
+- Write your entire answer in {language}, using words a non-lawyer can understand. \
+Keep law/section names as-is, but explain them in {language}.
 
 CONTEXT:
 {context}
@@ -92,8 +94,13 @@ def _collect_sources(chunks: List[dict]) -> List[dict]:
     return sources
 
 
-def generate_answer(query: str, user_history: List[Tuple[str, str]] = []) -> dict:
+def generate_answer(
+    query: str,
+    user_history: List[Tuple[str, str]] = [],
+    language: str = "English",
+) -> dict:
     """Run the full RAG pipeline. Returns {reply, sources, grounded, refused}."""
+    language = (language or "English").strip() or "English"
     search_query = _rewrite_query(query, user_history)
 
     # Retrieve + pre-generation relevance gate.
@@ -104,7 +111,10 @@ def generate_answer(query: str, user_history: List[Tuple[str, str]] = []) -> dic
 
     context = "\n\n".join(c["text"] for c in kept)
     prompt = _ANSWER_PROMPT.format(
-        context=context, history=_format_history(user_history), query=query
+        context=context,
+        history=_format_history(user_history),
+        query=query,
+        language=language,
     )
 
     try:

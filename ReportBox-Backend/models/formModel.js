@@ -42,11 +42,28 @@ const formData = new Schema({
     enum: ["pending", "in-progress", "resolved"],
     default: "pending"
   },
+  // Public, human-friendly id citizens use to track their report's status.
+  trackingId: {
+    type: String,
+    unique: true,
+    index: true
+  },
+  // Append-only timeline of status changes shown on the tracking page.
+  statusHistory: [
+    {
+      status: {
+        type: String,
+        enum: ["pending", "in-progress", "resolved"]
+      },
+      note: { type: String },
+      changedAt: { type: Date, default: Date.now }
+    }
+  ],
   latitude: {
-    type: Number, 
+    type: Number,
   },
   longitude: {
-    type: Number,  
+    type: Number,
   },
   createdAt: {
     type: Date,

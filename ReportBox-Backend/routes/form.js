@@ -1,10 +1,15 @@
 import express from 'express';
+import crypto from 'crypto';
 import formData from '../models/formModel.js';
 import adminAuth from '../middleware/adminAuth.js';
 
 const router = express.Router();
 
 const ALLOWED_STATUSES = ['pending', 'in-progress', 'resolved'];
+
+// Human-friendly public id, e.g. "SVK-3F9A2C7B1D".
+const generateTrackingId = () =>
+  `SVK-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 
 // GET all reports (admin only)
 router.get('/ReportForm', adminAuth, async (req, res) => {
@@ -66,15 +71,32 @@ router.post('/ReportForm', async (req, res) => {
       priority,
       mediaURL,
       latitude,
-      longitude
+      longitude,
+      trackingId: generateTrackingId(),
+      statusHistory: [{ status: 'pending', note: 'Report received.' }]
     });
 
-    await newData.save();
+    // Regenerate the tracking id on the rare chance of a unique-index collision.
+    let attempts = 0;
+    while (attempts < 3) {
+      try {
+        await newData.save();
+        break;
+      } catch (saveErr) {
+        if (saveErr.code === 11000 && saveErr.keyPattern?.trackingId && attempts < 2) {
+          newData.trackingId = generateTrackingId();
+          attempts += 1;
+          continue;
+        }
+        throw saveErr;
+      }
+    }
 
     res.status(201).json({
       success: true,
       message: 'Report submitted successfully.',
       data: newData,
+      trackingId: newData.trackingId,
       statusCode: 201
     });
   } catch (err) {
@@ -87,10 +109,42 @@ router.post('/ReportForm', async (req, res) => {
   }
 });
 
+// GET a single report's status by public tracking id (citizen-facing, no auth)
+router.get('/ReportForm/track/:trackingId', async (req, res) => {
+  try {
+    const report = await formData
+      .findOne({ trackingId: req.params.trackingId.trim() })
+      .select('trackingId title category status statusHistory createdAt location');
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: 'No report found for that tracking ID.',
+        errors: { trackingId: 'Unknown tracking ID.' },
+        statusCode: 404
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Report status fetched successfully.',
+      data: report,
+      statusCode: 200
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch report status.',
+      errors: { exception: err.message },
+      statusCode: 500
+    });
+  }
+});
+
 // PATCH report status (admin only)
 router.patch('/ReportForm/:id', adminAuth, async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, note } = req.body;
 
     if (!ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({
@@ -103,7 +157,12 @@ router.patch('/ReportForm/:id', adminAuth, async (req, res) => {
 
     const updated = await formData.findByIdAndUpdate(
       req.params.id,
-      { status },
+      {
+        status,
+        $push: {
+          statusHistory: { status, note: note || `Status changed to ${status}.` }
+        }
+      },
       { new: true }
     );
 

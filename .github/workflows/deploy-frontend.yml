@@ -1,0 +1,65 @@
+name: Deploy frontend to GitHub Pages
+
+# Builds ReportBox-front and publishes it to GitHub Pages at
+# https://<user>.github.io/Sevak/ . Backend URLs and keys are injected at build
+# time from repo Variables/Secrets (see DEPLOY.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ReportBox-front/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deploy at a time; don't cancel an in-progress one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ReportBox-front
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ReportBox-front/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          # Project-page base path. Change if you rename the repo or use a
+          # custom domain at root (then set VITE_BASE to "/").
+          VITE_BASE: /Sevak/
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+          VITE_BASE_URL: ${{ vars.VITE_BASE_URL }}
+          VITE_CLOUDINARY_KEY: ${{ secrets.VITE_CLOUDINARY_KEY }}
+          VITE_LOCATION_KEY: ${{ secrets.VITE_LOCATION_KEY }}
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ReportBox-front/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

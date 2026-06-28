@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import {
   Send,
   User,
@@ -6,16 +7,59 @@ import {
   Sparkles,
   CheckCircle,
   Copy,
-  Settings,
   AlertCircle,
   Plus,
   MessageSquare,
   Trash2,
   Menu,
+  Globe,
+  Volume2,
+  Square,
+  ThumbsUp,
+  ThumbsDown,
+  Search,
+  Pin,
+  Pencil,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import VoiceInput from "../components/VoiceInput";
+import Disclaimer from "../components/Disclaimer";
+import { useLanguage } from "../context/LanguageContext";
+
+// Guided intake — common situations shown on a fresh chat.
+const SCENARIOS = [
+  {
+    title: "File an FIR",
+    prompt:
+      "I want to file an FIR / police complaint. What are my rights and the steps to do it?",
+  },
+  {
+    title: "Domestic violence help",
+    prompt:
+      "I am facing domestic violence. What legal protection do I have and what should I do?",
+  },
+  {
+    title: "Workplace / wage issue",
+    prompt:
+      "My employer has not paid my wages. What does the law say and how do I claim them?",
+  },
+  {
+    title: "Online fraud / cyber crime",
+    prompt:
+      "I was a victim of online fraud. How do I report cyber crime and what are my rights?",
+  },
+  {
+    title: "Consumer complaint",
+    prompt:
+      "I bought a defective product and the seller refuses a refund. What can I do legally?",
+  },
+  {
+    title: "Tenant / property dispute",
+    prompt:
+      "I have a dispute with my landlord about my rented house. What are my rights?",
+  },
+];
 
 // Renders assistant messages as Markdown. react-markdown does not render raw
 // HTML by default, so this avoids the XSS surface of dangerouslySetInnerHTML.
@@ -86,6 +130,7 @@ const makeWelcomeMessage = () => ({
 const makeConversation = (title = "New Chat") => ({
   id: genId(),
   title,
+  pinned: false,
   messages: [makeWelcomeMessage()],
   createdAt: nowIso(),
   updatedAt: nowIso(),
@@ -109,9 +154,16 @@ function Chat() {
   const [isLoading, setIsLoading] = useState(true);
   const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
+  const [speakingId, setSpeakingId] = useState(null);
+  const [feedbackGiven, setFeedbackGiven] = useState({});
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const hasLoadedRef = useRef(false);
+
+  const { language, setLanguage, speechCode, languages } = useLanguage();
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -127,10 +179,16 @@ function Chat() {
   const activeConversation =
     conversations.find((c) => c.id === activeId) || null;
   const messages = activeConversation?.messages ?? [];
+  const hasUserMessage = messages.some((m) => m.type === "user");
 
-  const sortedConversations = [...conversations].sort(
-    (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
-  );
+  const query = search.trim().toLowerCase();
+  const sortedConversations = conversations
+    .filter((c) => !query || c.title.toLowerCase().includes(query))
+    .sort((a, b) => {
+      // Pinned conversations float to the top, then most-recently-updated.
+      if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    });
 
   // Initialize auth (JWT + user) from sessionStorage
   useEffect(() => {
@@ -185,6 +243,9 @@ function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, activeId, isTyping]);
+
+  // Stop any ongoing speech when leaving the page.
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   const loadConversations = async () => {
     setIsLoading(true);
@@ -248,6 +309,7 @@ function Chat() {
           const conv = {
             id: genId(),
             title: titleFromText(history[0].user) || "Previous conversation",
+            pinned: false,
             messages: seededMessages,
             createdAt: history[0].timestamp || nowIso(),
             updatedAt: history[history.length - 1].timestamp || nowIso(),
@@ -293,6 +355,8 @@ function Chat() {
   };
 
   const handleNewChat = () => {
+    window.speechSynthesis?.cancel();
+    setSpeakingId(null);
     const conv = makeConversation();
     setConversations((prev) => [conv, ...prev]);
     setActiveId(conv.id);
@@ -302,6 +366,8 @@ function Chat() {
   };
 
   const handleSelectConversation = (id) => {
+    window.speechSynthesis?.cancel();
+    setSpeakingId(null);
     setActiveId(id);
     setSidebarOpen(false);
     setError(null);
@@ -322,8 +388,83 @@ function Chat() {
     }
   };
 
-  const handleSendMessage = async () => {
-    const content = inputMessage.trim();
+  const handleTogglePin = (id, e) => {
+    e.stopPropagation();
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c))
+    );
+  };
+
+  const startRename = (conv, e) => {
+    e.stopPropagation();
+    setRenamingId(conv.id);
+    setRenameValue(conv.title);
+  };
+
+  const commitRename = (id) => {
+    const title = renameValue.trim();
+    if (title) {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, title } : c))
+      );
+    }
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel();
+    setSpeakingId(null);
+  };
+
+  const speakMessage = (message) => {
+    if (!("speechSynthesis" in window)) return;
+    // Toggle: clicking the speaker on a message that's playing stops it.
+    if (speakingId === message.id) {
+      stopSpeaking();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    utterance.lang = speechCode;
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+    setSpeakingId(message.id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const sendFeedback = async (message, rating) => {
+    if (feedbackGiven[message.id]) return;
+    setFeedbackGiven((prev) => ({ ...prev, [message.id]: rating }));
+
+    // The preceding user message is the question this answer responded to.
+    const idx = messages.findIndex((m) => m.id === message.id);
+    let question = "";
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i].type === "user") {
+        question = messages[i].content;
+        break;
+      }
+    }
+
+    try {
+      await fetch(`${API_BASE_URL}/chat/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating, question, answer: message.content }),
+      });
+    } catch (err) {
+      console.error("Failed to send feedback:", err);
+    }
+  };
+
+  const handleSendMessage = async (overrideText) => {
+    const content = (
+      typeof overrideText === "string" ? overrideText : inputMessage
+    ).trim();
     if (!content || !token) {
       return;
     }
@@ -372,7 +513,7 @@ function Chat() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({ message: content, language }),
       });
 
       if (!response.ok) {
@@ -386,7 +527,7 @@ function Chat() {
           if (errorData.errors && errorData.errors.exception) {
             errorMessage += ` (${errorData.errors.exception})`;
           }
-        } catch (parseError) {
+        } catch {
           errorMessage = `HTTP ${response.status}: ${
             errorText || "Failed to get response"
           }`;
@@ -474,12 +615,12 @@ function Chat() {
           <p className="text-slate-300 mb-6">
             You need to be logged in to access SEVAK Legal Assistant.
           </p>
-          <a
-            href="/login"
+          <Link
+            to="/login"
             className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105"
           >
             Go to Login
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -516,7 +657,7 @@ function Chat() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="p-4 border-b border-white/10">
+        <div className="p-4 border-b border-white/10 space-y-3">
           <button
             onClick={handleNewChat}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
@@ -524,6 +665,16 @@ function Chat() {
             <Plus className="w-5 h-5" />
             New Chat
           </button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search chats"
+              className="w-full bg-white/10 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            />
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1 no-scrollbar">
@@ -541,32 +692,80 @@ function Chat() {
                     : "hover:bg-white/10 border border-transparent"
                 }`}
               >
-                <button
-                  onClick={() => handleSelectConversation(conv.id)}
-                  className="flex-1 flex items-center gap-3 px-3 py-3 text-left min-w-0"
-                >
-                  <MessageSquare
-                    className={`w-4 h-4 flex-shrink-0 ${
-                      conv.id === activeId ? "text-blue-400" : "text-slate-400"
-                    }`}
+                {renamingId === conv.id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => commitRename(conv.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename(conv.id);
+                      if (e.key === "Escape") {
+                        setRenamingId(null);
+                        setRenameValue("");
+                      }
+                    }}
+                    className="flex-1 bg-slate-800 border border-blue-400/40 rounded-lg px-3 py-2 m-1 text-sm text-white focus:outline-none"
                   />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-100 truncate">
-                      {conv.title}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {formatRelative(conv.updatedAt)}
-                    </p>
+                ) : (
+                  <button
+                    onClick={() => handleSelectConversation(conv.id)}
+                    className="flex-1 flex items-center gap-3 px-3 py-3 text-left min-w-0"
+                  >
+                    {conv.pinned ? (
+                      <Pin className="w-4 h-4 flex-shrink-0 text-yellow-400 fill-yellow-400" />
+                    ) : (
+                      <MessageSquare
+                        className={`w-4 h-4 flex-shrink-0 ${
+                          conv.id === activeId
+                            ? "text-blue-400"
+                            : "text-slate-400"
+                        }`}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-100 truncate">
+                        {conv.title}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {formatRelative(conv.updatedAt)}
+                      </p>
+                    </div>
+                  </button>
+                )}
+
+                {renamingId !== conv.id && (
+                  <div className="flex items-center pr-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                    <button
+                      onClick={(e) => handleTogglePin(conv.id, e)}
+                      title={conv.pinned ? "Unpin" : "Pin"}
+                      aria-label="Pin conversation"
+                      className={`p-1 rounded-lg hover:bg-white/10 ${
+                        conv.pinned
+                          ? "text-yellow-400"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Pin className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => startRename(conv, e)}
+                      title="Rename"
+                      aria-label="Rename conversation"
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteConversation(conv.id, e)}
+                      title="Delete conversation"
+                      aria-label="Delete conversation"
+                      className="p-1 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/20"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                </button>
-                <button
-                  onClick={(e) => handleDeleteConversation(conv.id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-1 mr-2 flex-shrink-0 hover:bg-red-500/20 rounded-lg text-slate-400 hover:text-red-400 transition-all duration-200"
-                  title="Delete conversation"
-                  aria-label="Delete conversation"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                )}
               </div>
             ))
           )}
@@ -636,12 +835,27 @@ function Chat() {
               <Plus className="w-4 h-4" />
               New Chat
             </button>
-            <span className="hidden md:inline text-xs text-slate-500">
-              ID: {userId?.slice(-8)}
-            </span>
-            <button className="p-2 hover:bg-white/10 rounded-xl transition-all duration-300 text-slate-400 hover:text-white">
-              <Settings className="w-6 h-6" />
-            </button>
+            <div
+              className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2 py-1.5"
+              title="Answer language"
+            >
+              <Globe className="w-4 h-4 text-slate-300" />
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="bg-transparent text-sm text-slate-200 focus:outline-none cursor-pointer"
+              >
+                {languages.map((l) => (
+                  <option
+                    key={l.code}
+                    value={l.code}
+                    className="bg-slate-800 text-white"
+                  >
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </header>
 
@@ -732,6 +946,52 @@ function Chat() {
                         </div>
                       )}
 
+                    {/* Bot actions: listen aloud + answer feedback */}
+                    {message.type === "bot" && message.status !== "error" && (
+                      <div className="mt-3 flex items-center gap-1">
+                        <button
+                          onClick={() => speakMessage(message)}
+                          title={speakingId === message.id ? "Stop" : "Listen"}
+                          className="p-1.5 hover:bg-white/15 rounded-lg text-slate-400 hover:text-white transition-all"
+                        >
+                          {speakingId === message.id ? (
+                            <Square className="w-4 h-4" />
+                          ) : (
+                            <Volume2 className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => sendFeedback(message, "up")}
+                          disabled={!!feedbackGiven[message.id]}
+                          title="Helpful"
+                          className={`p-1.5 rounded-lg transition-all ${
+                            feedbackGiven[message.id] === "up"
+                              ? "text-green-400"
+                              : "text-slate-400 hover:text-white hover:bg-white/15"
+                          }`}
+                        >
+                          <ThumbsUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => sendFeedback(message, "down")}
+                          disabled={!!feedbackGiven[message.id]}
+                          title="Not helpful"
+                          className={`p-1.5 rounded-lg transition-all ${
+                            feedbackGiven[message.id] === "down"
+                              ? "text-red-400"
+                              : "text-slate-400 hover:text-white hover:bg-white/15"
+                          }`}
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                        </button>
+                        {feedbackGiven[message.id] && (
+                          <span className="text-xs text-slate-500 ml-1">
+                            Thanks!
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Copy Button */}
                     <button
                       onClick={() => copyMessage(message.content, message.id)}
@@ -771,6 +1031,29 @@ function Chat() {
             </div>
           ))}
 
+          {/* Guided intake — shown on a fresh conversation */}
+          {!hasUserMessage && !isTyping && (
+            <div className="max-w-2xl mx-auto mt-2">
+              <p className="text-center text-sm text-slate-400 mb-4">
+                Not sure where to start? Pick a common situation:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {SCENARIOS.map((s) => (
+                  <button
+                    key={s.title}
+                    onClick={() => handleSendMessage(s.prompt)}
+                    className="text-left bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-400/40 rounded-2xl p-4 transition-all duration-200"
+                  >
+                    <p className="text-sm font-semibold text-white">
+                      {s.title}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">{s.prompt}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Typing Indicator */}
           {isTyping && (
             <div className="flex justify-start mb-6">
@@ -800,6 +1083,8 @@ function Chat() {
 
         {/* Input Area */}
         <div className="bg-black/30 backdrop-blur-xl border-t border-white/10 p-4 relative z-10 flex-shrink-0">
+          <Disclaimer className="mb-3" />
+
           {/* Legal Categories */}
           <div className="mb-4 flex flex-wrap gap-2">
             {legalCategories.map((category, index) => (
@@ -837,7 +1122,7 @@ function Chat() {
 
             {/* Send Button */}
             <button
-              onClick={handleSendMessage}
+              onClick={() => handleSendMessage()}
               disabled={!inputMessage.trim() || isTyping || !token}
               className={`p-3 rounded-2xl transition-all duration-300 flex-shrink-0 ${
                 inputMessage.trim() && !isTyping && token

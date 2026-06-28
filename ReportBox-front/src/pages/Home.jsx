@@ -393,7 +393,6 @@ const handleChatClick = () => {
 
             {/* Enhanced Selection Lines */}
             {categories.map((_, index) => {
-              const position = getCategoryPosition(index, categories.length);
               const isActive = index === activeCategory;
               const isHovered = index === hoveredCategory;
               const isVisible = isActive || isHovered;

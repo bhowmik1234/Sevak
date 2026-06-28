@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.db.prisma_client import prisma
-from app.routes import auth, chat, upload, users
+from app.routes import auth, chat, documents, upload, users
 from app.utils.cleanup import delete_old_messages
 from app.utils.rate_limit import limiter
 
@@ -53,6 +53,7 @@ async def ping():
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(upload.router, prefix="/admin", tags=["Upload"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
+app.include_router(documents.router, prefix="/documents", tags=["Documents"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
 
