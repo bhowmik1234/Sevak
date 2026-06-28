@@ -3,356 +3,380 @@ import {
   Send,
   User,
   Bot,
-  ArrowLeft,
   Sparkles,
   CheckCircle,
-  Mic,
-  MicOff,
   Copy,
   Settings,
   AlertCircle,
+  Plus,
+  MessageSquare,
+  Trash2,
+  Menu,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import VoiceInput from "../components/VoiceInput";
 
-// Message formatter component to handle markdown-like formatting
-const FormattedMessage = ({ content }) => {
-  const formatMessage = (text) => {
-    // Split by double newlines to create paragraphs
-    const paragraphs = text.split("\n\n");
+// Renders assistant messages as Markdown. react-markdown does not render raw
+// HTML by default, so this avoids the XSS surface of dangerouslySetInnerHTML.
+const FormattedMessage = ({ content }) => (
+  <div className="formatted-message">
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: (props) => <p className="mb-3 leading-relaxed" {...props} />,
+        ul: (props) => (
+          <ul className="list-disc list-inside space-y-2 mb-4" {...props} />
+        ),
+        ol: (props) => (
+          <ol className="list-decimal list-inside space-y-2 mb-4" {...props} />
+        ),
+        li: (props) => <li className="leading-relaxed" {...props} />,
+        strong: (props) => (
+          <strong className="font-semibold text-white" {...props} />
+        ),
+        em: (props) => <em className="italic" {...props} />,
+        code: (props) => (
+          <code
+            className="bg-black/30 px-2 py-1 rounded text-sm font-mono"
+            {...props}
+          />
+        ),
+        a: (props) => (
+          <a
+            className="text-blue-300 underline"
+            target="_blank"
+            rel="noopener noreferrer"
+            {...props}
+          />
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  </div>
+);
 
-    return paragraphs
-      .map((paragraph, pIndex) => {
-        // Handle numbered lists (1. 2. 3. etc.)
-        if (/^\d+\./.test(paragraph.trim())) {
-          const listItems = paragraph.split(/(?=\d+\.)/);
-          return (
-            <ol
-              key={pIndex}
-              className="list-decimal list-inside space-y-2 mb-4"
-            >
-              {listItems
-                .filter((item) => item.trim())
-                .map((item, lIndex) => {
-                  const cleanItem = item.replace(/^\d+\.\s*/, "").trim();
-                  return (
-                    <li key={lIndex} className="leading-relaxed">
-                      {formatInlineText(cleanItem)}
-                    </li>
-                  );
-                })}
-            </ol>
-          );
-        }
+// --- Conversation persistence helpers -------------------------------------
+// The FastAPI backend stores one flat message log per user, so multiple
+// "chat environments" are managed entirely on the client. Conversations are
+// kept in localStorage keyed by user id, and seeded once from the server's
+// /chat/history endpoint so existing history is never lost.
+const CHATS_KEY = (id) => `sevak_chats_${id || "anon"}`;
+const ACTIVE_KEY = (id) => `sevak_active_chat_${id || "anon"}`;
 
-        // Handle bullet points (* or -)
-        if (
-          /^[\*\-]\s/.test(paragraph.trim()) ||
-          paragraph.includes("\n* ") ||
-          paragraph.includes("\n- ")
-        ) {
-          const listItems = paragraph.split(/\n(?=[\*\-]\s)/);
-          return (
-            <ul key={pIndex} className="list-disc list-inside space-y-2 mb-4">
-              {listItems
-                .filter((item) => item.trim())
-                .map((item, lIndex) => {
-                  const cleanItem = item.replace(/^[\*\-]\s*/, "").trim();
-                  return (
-                    <li key={lIndex} className="leading-relaxed">
-                      {formatInlineText(cleanItem)}
-                    </li>
-                  );
-                })}
-            </ul>
-          );
-        }
+const WELCOME_TEXT =
+  "Welcome to SEVAK Legal Assistant! I'm here to help you with legal questions and guidance. How can I assist you today?";
 
-        // Regular paragraph
-        if (paragraph.trim()) {
-          return (
-            <p key={pIndex} className="mb-3 leading-relaxed">
-              {formatInlineText(paragraph)}
-            </p>
-          );
-        }
+const genId = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `id_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-        return null;
-      })
-      .filter(Boolean);
-  };
+const nowIso = () => new Date().toISOString();
 
-  const formatInlineText = (text) => {
-    // Handle bold text **text**
-    let formatted = text.replace(
-      /\*\*(.*?)\*\*/g,
-      '<strong class="font-semibold text-white">$1</strong>'
-    );
+const makeWelcomeMessage = () => ({
+  id: genId(),
+  type: "bot",
+  content: WELCOME_TEXT,
+  timestamp: nowIso(),
+  status: "delivered",
+});
 
-    // Handle italic text *text*
-    formatted = formatted.replace(
-      /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g,
-      '<em class="italic">$1</em>'
-    );
+const makeConversation = (title = "New Chat") => ({
+  id: genId(),
+  title,
+  messages: [makeWelcomeMessage()],
+  createdAt: nowIso(),
+  updatedAt: nowIso(),
+});
 
-    // Handle code blocks `code`
-    formatted = formatted.replace(
-      /`([^`]+)`/g,
-      '<code class="bg-black/30 px-2 py-1 rounded text-sm font-mono">$1</code>'
-    );
-
-    // Split by HTML tags to preserve them while processing line breaks
-    const parts = formatted.split(/(<[^>]*>)/);
-    const result = [];
-
-    for (let i = 0; i < parts.length; i++) {
-      if (parts[i].startsWith("<") && parts[i].endsWith(">")) {
-        // This is an HTML tag, keep it as is
-        result.push(
-          <span key={i} dangerouslySetInnerHTML={{ __html: parts[i] }} />
-        );
-      } else {
-        // This is text content, handle line breaks
-        const lines = parts[i].split("\n");
-        lines.forEach((line, lineIndex) => {
-          if (lineIndex > 0) {
-            result.push(<br key={`br-${i}-${lineIndex}`} />);
-          }
-          if (line.trim()) {
-            result.push(<span key={`text-${i}-${lineIndex}`}>{line}</span>);
-          }
-        });
-      }
-    }
-
-    return result.length === 1 && typeof result[0] === "string" ? (
-      <span dangerouslySetInnerHTML={{ __html: formatted }} />
-    ) : (
-      result
-    );
-  };
-
-  return <div className="formatted-message">{formatMessage(content)}</div>;
+const titleFromText = (text) => {
+  const trimmed = (text || "").trim().replace(/\s+/g, " ");
+  if (!trimmed) return "New Chat";
+  return trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed;
 };
 
 function Chat() {
-  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const hasLoadedRef = useRef(false);
 
-  const API_BASE_URL = "http://localhost:8000";
+  const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
   const legalCategories = [
     "Criminal Law",
     "Civil Law",
     "Family Law",
-    "Property Law",
-    "Labor Law",
+    "Cyber Law",
+    "Labor & Wages",
     "Consumer Rights",
   ];
 
-  // Initialize userId from sessionStorage or create new one
+  const activeConversation =
+    conversations.find((c) => c.id === activeId) || null;
+  const messages = activeConversation?.messages ?? [];
+
+  const sortedConversations = [...conversations].sort(
+    (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+  );
+
+  // Initialize auth (JWT + user) from sessionStorage
   useEffect(() => {
-    const initializeUserId = () => {
-      try {
-        let storedUserId = sessionStorage.getItem("userId");
-        let actualUserId = null;
+    try {
+      const storedToken = sessionStorage.getItem("token");
+      const storedUser = sessionStorage.getItem("user");
 
-        if (!storedUserId) {
-          // Don't generate userId if none exists - user must be logged in
-          actualUserId = null;
-          console.log("No userId found - user not logged in");
-        } else {
-          console.log("Raw userId from sessionStorage:", storedUserId);
-
-          // Check if storedUserId is a JSON object or plain string
-          try {
-            const userObj = JSON.parse(storedUserId);
-            if (userObj && userObj.id) {
-              // It's a user object, extract the ID
-              actualUserId = userObj.id;
-              console.log("Extracted userId from user object:", actualUserId);
-            } else {
-              // It's malformed JSON, treat as string
-              actualUserId = storedUserId;
-              console.log(
-                "Using malformed JSON as plain userId:",
-                actualUserId
-              );
-            }
-          } catch (parseError) {
-            // Not JSON, it's a plain string
-            actualUserId = storedUserId;
-            console.log("Using plain string userId:", actualUserId);
-          }
-        }
-
-        setUserId(actualUserId);
-      } catch (error) {
-        console.error("Error accessing sessionStorage:", error);
-        // Don't create fallback userId - user must be logged in
-        setUserId(null);
-        console.log("SessionStorage error - user not logged in");
+      setToken(storedToken);
+      if (storedUser) {
+        const userObj = JSON.parse(storedUser);
+        setUserId(userObj?.id ?? null);
       }
-    };
 
-    initializeUserId();
+      // Not logged in — stop the loading spinner so the login prompt shows.
+      if (!storedToken) {
+        setIsLoading(false);
+      }
+    } catch (err) {
+      console.error("Error reading auth from sessionStorage:", err);
+      setToken(null);
+      setUserId(null);
+      setIsLoading(false);
+    }
   }, []);
 
-  // Load chat history once userId is available
+  // Load conversations once authenticated (localStorage first, server seed once)
   useEffect(() => {
-    if (userId) {
-      loadChatHistory();
-    }
-  }, [userId]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const loadChatHistory = async () => {
-    if (!userId) {
-      console.log("No userId available, skipping chat history load");
+    if (!token || hasLoadedRef.current) {
       return;
     }
+    hasLoadedRef.current = true;
+    loadConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
+  // Persist conversations whenever they change (after the initial load)
+  useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
     try {
-      setIsLoading(true);
-      console.log("Loading chat history for userId:", userId);
-
-      const response = await fetch(`${API_BASE_URL}/chat/history/${userId}`);
-      console.log("History response status:", response.status);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Failed to load chat history`);
+      localStorage.setItem(CHATS_KEY(userId), JSON.stringify(conversations));
+      if (activeId) {
+        localStorage.setItem(ACTIVE_KEY(userId), activeId);
       }
+    } catch (err) {
+      console.error("Failed to persist conversations:", err);
+    }
+  }, [conversations, activeId, userId, storageReady]);
 
-      const data = await response.json();
-      console.log("History data:", data);
+  // Auto-scroll to bottom when the active conversation updates
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, activeId, isTyping]);
 
-      if (
-        data.success &&
-        data.data &&
-        data.data.history &&
-        data.data.history.length > 0
-      ) {
-        const formattedMessages = [];
-        data.data.history.forEach((record, index) => {
-          // Add user message
-          formattedMessages.push({
-            id: `user_${record.id}_${index}`,
-            type: "user",
-            content: record.user,
-            timestamp: new Date(record.timestamp),
-            status: "sent",
-          });
-
-          // Add bot message
-          formattedMessages.push({
-            id: `bot_${record.id}_${index}`,
-            type: "bot",
-            content: record.bot,
-            timestamp: new Date(record.timestamp),
-            status: "delivered",
-          });
-        });
-        setMessages(formattedMessages);
-        console.log(
-          "Loaded",
-          formattedMessages.length,
-          "messages from history"
-        );
-      } else {
-        // Show welcome message if no history
-        console.log("No chat history found, showing welcome message");
-        setMessages([
-          {
-            id: "welcome",
-            type: "bot",
-            content:
-              "Welcome to SEVAK Legal Assistant! I'm here to help you with legal questions and guidance. How can I assist you today?",
-            timestamp: new Date(),
-            status: "delivered",
-          },
-        ]);
+  const loadConversations = async () => {
+    setIsLoading(true);
+    try {
+      const raw = localStorage.getItem(CHATS_KEY(userId));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConversations(parsed);
+          const storedActive = localStorage.getItem(ACTIVE_KEY(userId));
+          setActiveId(
+            parsed.some((c) => c.id === storedActive)
+              ? storedActive
+              : parsed[0].id
+          );
+          return;
+        }
       }
-    } catch (error) {
-      console.error("Error loading chat history:", error);
-      setError(`Failed to load chat history: ${error.message}`);
-      // Show welcome message on error
-      setMessages([
-        {
-          id: "welcome",
-          type: "bot",
-          content:
-            "Welcome to SEVAK Legal Assistant! I'm here to help you with legal questions and guidance. How can I assist you today?",
-          timestamp: new Date(),
-          status: "delivered",
-        },
-      ]);
+      // No local conversations yet — seed from the server history (one-time).
+      await seedFromServer();
+    } catch (err) {
+      console.error("Error loading conversations:", err);
+      const conv = makeConversation();
+      setConversations([conv]);
+      setActiveId(conv.id);
     } finally {
       setIsLoading(false);
+      setStorageReady(true);
+    }
+  };
+
+  const seedFromServer = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const history = data?.data?.history ?? [];
+
+        if (history.length > 0) {
+          const seededMessages = [];
+          history.forEach((record, index) => {
+            seededMessages.push({
+              id: `user_${record.id}_${index}`,
+              type: "user",
+              content: record.user,
+              timestamp: record.timestamp || nowIso(),
+              status: "sent",
+            });
+            seededMessages.push({
+              id: `bot_${record.id}_${index}`,
+              type: "bot",
+              content: record.bot,
+              timestamp: record.timestamp || nowIso(),
+              status: "delivered",
+            });
+          });
+
+          const conv = {
+            id: genId(),
+            title: titleFromText(history[0].user) || "Previous conversation",
+            messages: seededMessages,
+            createdAt: history[0].timestamp || nowIso(),
+            updatedAt: history[history.length - 1].timestamp || nowIso(),
+          };
+          setConversations([conv]);
+          setActiveId(conv.id);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error seeding conversations from server:", err);
+    }
+
+    // Fresh start when there is nothing to import.
+    const conv = makeConversation();
+    setConversations([conv]);
+    setActiveId(conv.id);
+  };
+
+  const appendMessage = (convId, message) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? { ...c, messages: [...c.messages, message], updatedAt: nowIso() }
+          : c
+      )
+    );
+  };
+
+  const patchMessage = (convId, messageId, patch) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? {
+              ...c,
+              messages: c.messages.map((m) =>
+                m.id === messageId ? { ...m, ...patch } : m
+              ),
+            }
+          : c
+      )
+    );
+  };
+
+  const handleNewChat = () => {
+    const conv = makeConversation();
+    setConversations((prev) => [conv, ...prev]);
+    setActiveId(conv.id);
+    setSidebarOpen(false);
+    setError(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleSelectConversation = (id) => {
+    setActiveId(id);
+    setSidebarOpen(false);
+    setError(null);
+  };
+
+  const handleDeleteConversation = (id, e) => {
+    e.stopPropagation();
+    const remaining = conversations.filter((c) => c.id !== id);
+    if (remaining.length === 0) {
+      const conv = makeConversation();
+      setConversations([conv]);
+      setActiveId(conv.id);
+      return;
+    }
+    setConversations(remaining);
+    if (id === activeId) {
+      setActiveId(remaining[0].id);
     }
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !userId) {
-      console.log("Cannot send message: missing input or userId");
+    const content = inputMessage.trim();
+    if (!content || !token) {
       return;
+    }
+
+    // Make sure there is an active conversation to write into.
+    let convId = activeId;
+    if (!convId) {
+      const conv = makeConversation();
+      setConversations((prev) => [conv, ...prev]);
+      setActiveId(conv.id);
+      convId = conv.id;
     }
 
     const userMessage = {
       id: `user_${Date.now()}`,
       type: "user",
-      content: inputMessage.trim(),
-      timestamp: new Date(),
+      content,
+      timestamp: nowIso(),
       status: "sending",
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    const messageContent = inputMessage.trim();
+    // Append the user message and title the conversation from the first prompt.
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== convId) return c;
+        const isFirstUserMsg = !c.messages.some((m) => m.type === "user");
+        return {
+          ...c,
+          title: isFirstUserMsg ? titleFromText(content) : c.title,
+          messages: [...c.messages, userMessage],
+          updatedAt: nowIso(),
+        };
+      })
+    );
+
     setInputMessage("");
     setIsTyping(true);
     setError(null);
 
     try {
-      // Update message status to sent
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === userMessage.id ? { ...msg, status: "sent" } : msg
-        )
-      );
+      patchMessage(convId, userMessage.id, { status: "sent" });
 
-      console.log("Sending request to:", `${API_BASE_URL}/chat/chat`);
-      console.log("Request payload:", { userId, message: messageContent });
-
-      const response = await fetch(`${API_BASE_URL}/chat/chat`, {
+      const response = await fetch(`${API_BASE_URL}/chat/message`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          userId: userId,
-          message: messageContent,
-        }),
+        body: JSON.stringify({ message: content }),
       });
 
-      console.log("Response status:", response.status);
-      console.log("Response ok:", response.ok);
-
-      // Check if response is ok before parsing JSON
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Response error text:", errorText);
-
-        // Parse error response if it's JSON
         let errorMessage = `HTTP ${response.status}: Failed to get response`;
         try {
           const errorData = JSON.parse(errorText);
@@ -367,41 +391,36 @@ function Chat() {
             errorText || "Failed to get response"
           }`;
         }
-
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log("Response data:", data);
 
       if (data.success && data.data && data.data.reply) {
-        const botMessage = {
+        appendMessage(convId, {
           id: `bot_${Date.now()}`,
           type: "bot",
           content: data.data.reply,
-          timestamp: new Date(),
+          timestamp: nowIso(),
           status: "delivered",
-        };
-
-        setMessages((prev) => [...prev, botMessage]);
+          sources: data.data.sources || [],
+          grounded: data.data.grounded !== false,
+          refused: data.data.refused === true,
+        });
       } else {
         throw new Error(data.message || "Invalid response format");
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setError(`Failed to send message: ${error.message}`);
-
-      // Add error message
-      const errorMessage = {
+    } catch (err) {
+      console.error("Error sending message:", err);
+      setError(`Failed to send message: ${err.message}`);
+      appendMessage(convId, {
         id: `error_${Date.now()}`,
         type: "bot",
         content:
           "I'm sorry, I'm having trouble responding right now. Please try again in a moment.",
-        timestamp: new Date(),
+        timestamp: nowIso(),
         status: "error",
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
+      });
     } finally {
       setIsTyping(false);
     }
@@ -415,34 +434,40 @@ function Chat() {
   };
 
   const handleVoiceInput = (text) => {
-        setInputMessage((prev) => prev + " " + text);
-    };
+    setInputMessage((prev) => prev + " " + text);
+  };
 
   const copyMessage = async (content, messageId) => {
     try {
       await navigator.clipboard.writeText(content);
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
-    } catch (error) {
-      console.error("Failed to copy message:", error);
+    } catch (err) {
+      console.error("Failed to copy message:", err);
     }
   };
 
-  const formatTime = (timestamp) => {
-    return timestamp.toLocaleTimeString([], {
+  const formatTime = (timestamp) =>
+    new Date(timestamp).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  const formatRelative = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
-  const clearError = () => {
-    setError(null);
-  };
+  const clearError = () => setError(null);
 
   // Show login prompt if not logged in
-  if (!userId) {
+  if (!token) {
     return (
-      <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center">
+      <div className="h-[calc(100vh-4rem)] w-full bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center">
         <div className="text-white text-center bg-black/30 backdrop-blur-xl border border-white/20 rounded-3xl p-8 max-w-md mx-4">
           <Bot className="w-16 h-16 text-blue-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-4">Please Log In</h2>
@@ -463,7 +488,7 @@ function Chat() {
   // Show loading screen while initializing
   if (isLoading) {
     return (
-      <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center">
+      <div className="h-[calc(100vh-4rem)] w-full bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center">
         <div className="text-white text-center">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p>Loading SEVAK Assistant...</p>
@@ -476,233 +501,356 @@ function Chat() {
   }
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex flex-col overflow-hidden no-scrollbar">
-      {/* Error Banner */}
-      {error && (
-        <div className="bg-red-500/20 border-b border-red-500/30 p-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2 text-red-200">
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-sm">{error}</span>
-          </div>
-          <button
-            onClick={clearError}
-            className="text-red-200 hover:text-white"
-          >
-            <CheckCircle className="w-4 h-4" />
-          </button>
-        </div>
+    <div className="h-[calc(100vh-4rem)] w-full bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex overflow-hidden no-scrollbar">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Header */}
-      <header className="bg-black/30 backdrop-blur-xl border-b border-white/10 p-4 flex items-center justify-between relative z-10 flex-shrink-0">
-        <div className="flex items-center space-x-4">
-          <button className="p-2 hover:bg-white/10 rounded-xl transition-all duration-300">
-            <ArrowLeft className="w-6 h-6 text-white" />
-          </button>
-
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                <Bot className="w-7 h-7 text-white" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-2 border-slate-900 rounded-full animate-pulse"></div>
-            </div>
-
-            <div>
-              <h1 className="text-xl font-bold text-white flex items-center space-x-2">
-                <span>SEVAK Assistant</span>
-                <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-              </h1>
-              <p className="text-sm text-slate-400">
-                Legal AI • Always available
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-slate-500">
-            ID: {userId?.slice(-8)}
-          </span>
-          <button className="p-2 hover:bg-white/10 rounded-xl transition-all duration-300 text-slate-400 hover:text-white">
-            <Settings className="w-6 h-6" />
-          </button>
-        </div>
-      </header>
-
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 relative z-10 no-scrollbar">
-        {/* Messages */}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.type === "user" ? "justify-end" : "justify-start"
-            } mb-6`}
+      {/* Sidebar — conversation history */}
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-30 w-72 flex-shrink-0 bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col transition-transform duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="p-4 border-b border-white/10">
+          <button
+            onClick={handleNewChat}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
           >
-            <div
-              className={`flex items-start space-x-3 max-w-[85%] ${
-                message.type === "user"
-                  ? "flex-row-reverse space-x-reverse"
-                  : ""
-              }`}
-            >
-              {/* Avatar */}
+            <Plus className="w-5 h-5" />
+            New Chat
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 space-y-1 no-scrollbar">
+          {sortedConversations.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center p-4">
+              No conversations yet
+            </p>
+          ) : (
+            sortedConversations.map((conv) => (
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg mt-1 ${
-                  message.type === "user"
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-600"
-                    : message.status === "error"
-                    ? "bg-gradient-to-r from-red-500 to-red-600"
-                    : "bg-gradient-to-r from-blue-500 to-indigo-600"
+                key={conv.id}
+                className={`group relative flex items-center rounded-xl transition-all duration-200 ${
+                  conv.id === activeId
+                    ? "bg-white/15 border border-white/20"
+                    : "hover:bg-white/10 border border-transparent"
                 }`}
               >
-                {message.type === "user" ? (
-                  <User className="w-5 h-5 text-white" />
-                ) : message.status === "error" ? (
-                  <AlertCircle className="w-5 h-5 text-white" />
-                ) : (
-                  <Bot className="w-5 h-5 text-white" />
-                )}
-              </div>
-
-              {/* Message Bubble */}
-              <div className="relative group">
-                <div
-                  className={`rounded-3xl px-6 py-4 relative shadow-lg ${
-                    message.type === "user"
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
-                      : message.status === "error"
-                      ? "bg-gradient-to-r from-red-600/50 to-red-700/50 border border-red-500/30 text-red-100"
-                      : "bg-black/50 backdrop-blur-xl border border-white/20 text-slate-100"
-                  }`}
+                <button
+                  onClick={() => handleSelectConversation(conv.id)}
+                  className="flex-1 flex items-center gap-3 px-3 py-3 text-left min-w-0"
                 >
-                  {/* Use FormattedMessage component for bot messages */}
-                  {message.type === "bot" ? (
-                    <FormattedMessage content={message.content} />
-                  ) : (
-                    <p className="text-sm leading-relaxed">{message.content}</p>
-                  )}
-
-                  {/* Copy Button */}
-                  <button
-                    onClick={() => copyMessage(message.content, message.id)}
-                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 hover:bg-white/20 rounded-full"
-                    title="Copy message"
-                  >
-                    {copiedMessageId === message.id ? (
-                      <CheckCircle className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Timestamp */}
-                <div
-                  className={`flex items-center space-x-2 mt-2 ${
-                    message.type === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  <MessageSquare
+                    className={`w-4 h-4 flex-shrink-0 ${
+                      conv.id === activeId ? "text-blue-400" : "text-slate-400"
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-100 truncate">
+                      {conv.title}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {formatRelative(conv.updatedAt)}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => handleDeleteConversation(conv.id, e)}
+                  className="opacity-0 group-hover:opacity-100 p-1 mr-2 flex-shrink-0 hover:bg-red-500/20 rounded-lg text-slate-400 hover:text-red-400 transition-all duration-200"
+                  title="Delete conversation"
+                  aria-label="Delete conversation"
                 >
-                  <span className="text-xs text-slate-500">
-                    {formatTime(message.timestamp)}
-                  </span>
-                  {message.type === "user" && (
-                    <div className="flex items-center">
-                      {message.status === "sending" && (
-                        <div className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                      )}
-                      {message.status === "sent" && (
-                        <CheckCircle className="w-3 h-3 text-green-400" />
-                      )}
-                    </div>
-                  )}
-                </div>
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-            </div>
-          </div>
-        ))}
+            ))
+          )}
+        </div>
 
-        {/* Typing Indicator */}
-        {isTyping && (
-          <div className="flex justify-start mb-6">
-            <div className="flex items-end space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <div className="bg-black/50 backdrop-blur-xl border border-white/20 rounded-3xl px-6 py-4 shadow-lg">
-                <div className="flex space-x-1">
-                  <div className="w-3 h-3 bg-slate-400 rounded-full animate-bounce"></div>
-                  <div
-                    className="w-3 h-3 bg-slate-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
-                  <div
-                    className="w-3 h-3 bg-slate-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0.4s" }}
-                  ></div>
-                </div>
-              </div>
+        <div className="p-3 border-t border-white/10 text-xs text-slate-500">
+          {conversations.length} conversation
+          {conversations.length !== 1 ? "s" : ""}
+        </div>
+      </aside>
+
+      {/* Main chat column */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-red-500/20 border-b border-red-500/30 p-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-red-200">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-sm">{error}</span>
             </div>
+            <button
+              onClick={clearError}
+              className="text-red-200 hover:text-white"
+            >
+              <CheckCircle className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Area */}
-      <div className="bg-black/30 backdrop-blur-xl border-t border-white/10 p-4 relative z-10 flex-shrink-0">
-        {/* Legal Categories */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {legalCategories.map((category, index) => (
+        {/* Header */}
+        <header className="bg-black/30 backdrop-blur-xl border-b border-white/10 p-4 flex items-center justify-between relative z-10 flex-shrink-0">
+          <div className="flex items-center space-x-3">
             <button
-              key={index}
-              onClick={() =>
-                setInputMessage(`I need help with ${category.toLowerCase()}`)
-              }
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-xs text-slate-300 hover:text-white transition-all duration-300"
-              disabled={isTyping}
+              onClick={() => setSidebarOpen((o) => !o)}
+              className="lg:hidden p-2 hover:bg-white/10 rounded-xl transition-all duration-300"
+              title="Toggle chat history"
             >
-              {category}
+              <Menu className="w-6 h-6 text-white" />
             </button>
-          ))}
-        </div>
 
-        <div className="flex items-end space-x-3">
-          {/* Voice Recording Button */}
-          <VoiceInput onVoiceResult={handleVoiceInput} />
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                  <Bot className="w-7 h-7 text-white" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-2 border-slate-900 rounded-full animate-pulse"></div>
+              </div>
 
-          {/* Message Input */}
-          <div className="flex-1 relative">
-            <textarea
-              ref={inputRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask me anything about legal matters... (Press Enter to send)"
-              className="w-full bg-white/10 border border-white/20 rounded-2xl px-6 py-4 pr-16 text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400/50 backdrop-blur-xl no-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
-              rows="1"
-              style={{ minHeight: "56px", maxHeight: "120px" }}
-              disabled={isTyping}
-            />
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-white flex items-center space-x-2">
+                  <span>SEVAK Assistant</span>
+                  <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
+                </h1>
+                <p className="text-sm text-slate-400 truncate max-w-[200px] sm:max-w-xs">
+                  {activeConversation?.title || "Legal AI • Always available"}
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Send Button */}
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isTyping || !userId}
-            className={`p-3 rounded-2xl transition-all duration-300 flex-shrink-0 ${
-              inputMessage.trim() && !isTyping && userId
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg hover:shadow-xl transform hover:scale-110"
-                : "bg-slate-600/50 text-slate-500 cursor-not-allowed"
-            }`}
-            title="Send message"
-          >
-            <Send className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleNewChat}
+              className="hidden sm:flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm text-slate-200 hover:text-white transition-all duration-300"
+              title="Start a new chat"
+            >
+              <Plus className="w-4 h-4" />
+              New Chat
+            </button>
+            <span className="hidden md:inline text-xs text-slate-500">
+              ID: {userId?.slice(-8)}
+            </span>
+            <button className="p-2 hover:bg-white/10 rounded-xl transition-all duration-300 text-slate-400 hover:text-white">
+              <Settings className="w-6 h-6" />
+            </button>
+          </div>
+        </header>
+
+        {/* Messages Container */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 relative z-10 no-scrollbar">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${
+                message.type === "user" ? "justify-end" : "justify-start"
+              } mb-6`}
+            >
+              <div
+                className={`flex items-start space-x-3 max-w-[85%] ${
+                  message.type === "user"
+                    ? "flex-row-reverse space-x-reverse"
+                    : ""
+                }`}
+              >
+                {/* Avatar */}
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg mt-1 ${
+                    message.type === "user"
+                      ? "bg-gradient-to-r from-indigo-500 to-purple-600"
+                      : message.status === "error"
+                      ? "bg-gradient-to-r from-red-500 to-red-600"
+                      : "bg-gradient-to-r from-blue-500 to-indigo-600"
+                  }`}
+                >
+                  {message.type === "user" ? (
+                    <User className="w-5 h-5 text-white" />
+                  ) : message.status === "error" ? (
+                    <AlertCircle className="w-5 h-5 text-white" />
+                  ) : (
+                    <Bot className="w-5 h-5 text-white" />
+                  )}
+                </div>
+
+                {/* Message Bubble */}
+                <div className="relative group">
+                  <div
+                    className={`rounded-3xl px-6 py-4 relative shadow-lg ${
+                      message.type === "user"
+                        ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+                        : message.status === "error"
+                        ? "bg-gradient-to-r from-red-600/50 to-red-700/50 border border-red-500/30 text-red-100"
+                        : "bg-black/50 backdrop-blur-xl border border-white/20 text-slate-100"
+                    }`}
+                  >
+                    {message.type === "bot" ? (
+                      <FormattedMessage content={message.content} />
+                    ) : (
+                      <p className="text-sm leading-relaxed">
+                        {message.content}
+                      </p>
+                    )}
+
+                    {/* Low-confidence / unverified caveat */}
+                    {message.type === "bot" &&
+                      message.grounded === false &&
+                      !message.refused && (
+                        <div className="mt-3 flex items-start gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <span>
+                            Parts of this answer could not be fully verified
+                            against the legal sources. Please confirm with a
+                            qualified lawyer.
+                          </span>
+                        </div>
+                      )}
+
+                    {/* Cited sources */}
+                    {message.type === "bot" &&
+                      message.sources &&
+                      message.sources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-white/10">
+                          <p className="text-xs font-semibold text-slate-400 mb-1">
+                            Sources
+                          </p>
+                          <ul className="space-y-1">
+                            {message.sources.map((s, i) => (
+                              <li key={i} className="text-xs text-slate-400">
+                                {s.section ? `${s.section} — ` : ""}
+                                {s.source}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                    {/* Copy Button */}
+                    <button
+                      onClick={() => copyMessage(message.content, message.id)}
+                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 hover:bg-white/20 rounded-full"
+                      title="Copy message"
+                    >
+                      {copiedMessageId === message.id ? (
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Timestamp */}
+                  <div
+                    className={`flex items-center space-x-2 mt-2 ${
+                      message.type === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <span className="text-xs text-slate-500">
+                      {formatTime(message.timestamp)}
+                    </span>
+                    {message.type === "user" && (
+                      <div className="flex items-center">
+                        {message.status === "sending" && (
+                          <div className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                        )}
+                        {message.status === "sent" && (
+                          <CheckCircle className="w-3 h-3 text-green-400" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Typing Indicator */}
+          {isTyping && (
+            <div className="flex justify-start mb-6">
+              <div className="flex items-end space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                  <Bot className="w-5 h-5 text-white" />
+                </div>
+                <div className="bg-black/50 backdrop-blur-xl border border-white/20 rounded-3xl px-6 py-4 shadow-lg">
+                  <div className="flex space-x-1">
+                    <div className="w-3 h-3 bg-slate-400 rounded-full animate-bounce"></div>
+                    <div
+                      className="w-3 h-3 bg-slate-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
+                    <div
+                      className="w-3 h-3 bg-slate-400 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.4s" }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="bg-black/30 backdrop-blur-xl border-t border-white/10 p-4 relative z-10 flex-shrink-0">
+          {/* Legal Categories */}
+          <div className="mb-4 flex flex-wrap gap-2">
+            {legalCategories.map((category, index) => (
+              <button
+                key={index}
+                onClick={() =>
+                  setInputMessage(`I need help with ${category.toLowerCase()}`)
+                }
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-xs text-slate-300 hover:text-white transition-all duration-300"
+                disabled={isTyping}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-end space-x-3">
+            {/* Voice Recording Button */}
+            <VoiceInput onVoiceResult={handleVoiceInput} />
+
+            {/* Message Input */}
+            <div className="flex-1 relative">
+              <textarea
+                ref={inputRef}
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Ask me anything about legal matters... (Press Enter to send)"
+                className="w-full bg-white/10 border border-white/20 rounded-2xl px-6 py-4 pr-16 text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400/50 backdrop-blur-xl no-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
+                rows="1"
+                style={{ minHeight: "56px", maxHeight: "120px" }}
+                disabled={isTyping}
+              />
+            </div>
+
+            {/* Send Button */}
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || isTyping || !token}
+              className={`p-3 rounded-2xl transition-all duration-300 flex-shrink-0 ${
+                inputMessage.trim() && !isTyping && token
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg hover:shadow-xl transform hover:scale-110"
+                  : "bg-slate-600/50 text-slate-500 cursor-not-allowed"
+              }`}
+              title="Send message"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
-
     </div>
   );
 }

@@ -37,6 +37,11 @@ const formData = new Schema({
   mediaURL: {
     type: String,
   },
+  status: {
+    type: String,
+    enum: ["pending", "in-progress", "resolved"],
+    default: "pending"
+  },
   latitude: {
     type: Number, 
   },

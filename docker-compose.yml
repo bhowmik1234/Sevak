@@ -1,0 +1,35 @@
+# Local datastores for Sevak. Start with: docker compose up -d
+services:
+  # Matches the DATABASE_URL already in backend/.env (myuser/mypassword@localhost:3001/mydb)
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    ports:
+      - "3001:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Optional — only needed if you point ReportBox at a LOCAL Mongo instead of Atlas.
+  # (Your ReportBox-Backend/.env currently uses MongoDB Atlas, so this is not required.)
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrantdata:/qdrant/storage
+
+volumes:
+  pgdata:
+  mongodata:
+  qdrantdata:

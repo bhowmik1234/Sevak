@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Scale, Shield, Users, Home as HomeIcon, FileText, Heart, Building, Calculator, ArrowRight, Sparkles } from 'lucide-react';
+import { MessageCircle, Scale, Shield, Users, Home as HomeIcon, FileText, Heart, Landmark, Laptop, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 function HomePage() {
@@ -25,10 +25,10 @@ function HomePage() {
     { name: 'Civil Law', icon: Scale, color: 'from-blue-500 to-blue-700', shadowColor: 'shadow-blue-500/30', page: '/civil-law' },
     { name: 'Family Law', icon: Heart, color: 'from-pink-500 to-pink-700', shadowColor: 'shadow-pink-500/30', page: '/family-law' },
     { name: 'Property Law', icon: HomeIcon, color: 'from-green-500 to-green-700', shadowColor: 'shadow-green-500/30', page: '/property-law' },
-    { name: 'Labor Law', icon: Users, color: 'from-purple-500 to-purple-700', shadowColor: 'shadow-purple-500/30', page: '/labor-law' },
+    { name: 'Labor & Wages', icon: Users, color: 'from-purple-500 to-purple-700', shadowColor: 'shadow-purple-500/30', page: '/labor-law' },
     { name: 'Consumer Rights', icon: FileText, color: 'from-orange-500 to-orange-700', shadowColor: 'shadow-orange-500/30', page: '/consumer-rights' },
-    { name: 'Tax Law', icon: Calculator, color: 'from-yellow-500 to-yellow-700', shadowColor: 'shadow-yellow-500/30', page: '/tax-law' },
-    { name: 'Corporate Law', icon: Building, color: 'from-indigo-500 to-indigo-700', shadowColor: 'shadow-indigo-500/30', page: '/corporate-law' }
+    { name: 'Cyber Law', icon: Laptop, color: 'from-cyan-500 to-cyan-700', shadowColor: 'shadow-cyan-500/30', page: '/cyber-law' },
+    { name: 'Constitutional Rights', icon: Landmark, color: 'from-amber-500 to-amber-700', shadowColor: 'shadow-amber-500/30', page: '/constitutional-rights' }
   ];
 
   useEffect(() => {
@@ -273,7 +273,8 @@ const handleChatClick = () => {
               Navigate complex legal matters with confidence and expertise.
               <br />
               <span className="text-blue-300 font-medium bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                Choose your practice area and let justice be served.
+                Ask the AI assistant about Indian law — IPC, CrPC, BNSS, the
+                Constitution, IT Act, and more.
               </span>
             </p>
           </div>

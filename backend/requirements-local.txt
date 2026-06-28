@@ -1,0 +1,15 @@
+# Self-host / local profile extras (NOT needed for free-tier deployment).
+# Install on a machine with enough RAM (these pull in ONNX runtime / torch):
+#   pip install -r requirements-local.txt
+#
+# Enables:
+#   EMBEDDINGS_PROVIDER=fastembed   (local ONNX embeddings, no torch)
+#   RERANK_ENABLED=true             (cross-encoder reranking)
+#   GROUNDEDNESS_METHOD=nli         (local entailment groundedness)
+# Local generation (LLM_PROVIDER=ollama|hybrid) uses Ollama over HTTP — no extra
+# Python package required here; install Ollama separately.
+
+-r requirements.txt
+
+fastembed==0.4.2
+sentence-transformers==3.3.1

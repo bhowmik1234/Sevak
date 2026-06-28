@@ -1,22 +1,35 @@
-fastapi
-uvicorn
-python-multipart
-sqlalchemy
-psycopg2-binary
-prisma
-pydantic
-openai
-requests
-google-generativeai
-chromadb
-PyPDF2
-qdrant-client
-# spacy
+# Base / free-tier deployment — no torch, no local ML models.
+# Embeddings, generation, and groundedness all go through the Gemini API.
+# For the local/self-host profile, also install requirements-local.txt.
 
-sentence-transformers
-apscheduler
-pydantic[email]
-gunicorn
-# en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-# pymupdf
-blis --prefer-binary
+# Web framework
+fastapi==0.115.6
+uvicorn==0.34.0
+gunicorn==23.0.0
+python-multipart==0.0.20
+
+# Data / validation
+pydantic[email]==2.10.4
+python-dotenv==1.0.1
+
+# Database
+prisma==0.15.0
+
+# Auth & security
+bcrypt==4.2.1
+PyJWT==2.10.1
+
+# Rate limiting
+slowapi==0.1.9
+
+# AI / RAG (API-based — lightweight)
+google-generativeai==0.8.3
+qdrant-client==1.12.1
+pinecone==9.1.0
+
+# PDF ingestion
+pymupdf==1.25.1
+requests==2.32.3
+
+# Scheduling
+apscheduler==3.11.0

@@ -1,10 +1,13 @@
+import logging
+from datetime import datetime, timedelta, timezone
 
-
-from datetime import datetime, timedelta
 from app.db.prisma_client import prisma
 
-async def delete_old_messages(minutes: int = 5):
-    cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+logger = logging.getLogger(__name__)
+
+
+async def delete_old_messages(minutes: int = 1440):
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
 
     deleted_count = await prisma.message.delete_many(
         where={
@@ -14,5 +17,5 @@ async def delete_old_messages(minutes: int = 5):
         }
     )
 
-    print(f"[Cleanup] Deleted {deleted_count} messages older than {minutes} minutes.")
+    logger.info("Deleted %s messages older than %s minutes.", deleted_count, minutes)
     return deleted_count

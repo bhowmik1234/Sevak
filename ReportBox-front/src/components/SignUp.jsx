@@ -18,8 +18,9 @@ const Signup = () => {
 
       const data = await res.json();
       if (!res.ok) throw new Error(`${data.message || 'Signup failed'}`);
-      alert('Signup successful, please log in');
-      navigate('/login'); 
+      sessionStorage.setItem('token', data.data.token);
+      sessionStorage.setItem('user', JSON.stringify({ id: data.data.userId, name: data.data.name }));
+      navigate('/chat');
     } catch (err) {
       alert(err.message);
     }
@@ -35,7 +36,7 @@ const Signup = () => {
             <p className="text-slate-300 text-sm">Join us to access legal services</p>
           </div>
           
-          <div className="space-y-6">
+          <form onSubmit={handleSignup} className="space-y-6">
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-200">Full Name</label>
               <input 
@@ -72,14 +73,13 @@ const Signup = () => {
               />
             </div>
             
-            <button 
-              type="button" 
-              onClick={handleSignup}
+            <button
+              type="submit"
               className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
               Create Account
             </button>
-          </div>
+          </form>
           
           <div className="mt-6 text-center">
             <p className="text-slate-300 text-sm">

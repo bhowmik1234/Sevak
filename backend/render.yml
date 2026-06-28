@@ -1,10 +1,47 @@
-# render.yaml
+# render.yaml — FastAPI (Legal Assistant) backend
 services:
   - type: web
-    name: fastapi-service
+    name: sevak-fastapi
     env: python
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt && prisma generate"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      # Set these in the Render dashboard (sync: false = not stored in repo).
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      # Vector DB — use QDRANT_URL + QDRANT_API_KEY for Qdrant Cloud.
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
       - key: FRONTEND_URL
-        value: "https://your-frontend-url.com"
+        sync: false
+      # --- RAG: free profile (all via Gemini API, no local ML) ---
+      - key: EMBEDDINGS_PROVIDER
+        value: "gemini"
+      - key: LLM_PROVIDER
+        value: "gemini"
+      - key: GEMINI_MODEL
+        value: "models/gemini-2.5-flash"
+      - key: GEMINI_EMBED_MODEL
+        value: "models/gemini-embedding-001"
+      - key: RELEVANCE_THRESHOLD
+        value: "0.30"
+      - key: GROUNDEDNESS_ENABLED
+        value: "true"
+      - key: GROUNDEDNESS_METHOD
+        value: "judge"
+      - key: QUERY_REWRITE_ENABLED
+        value: "true"
+      - key: JWT_EXPIRE_MINUTES
+        value: "1440"
+      - key: CLEANUP_INTERVAL_MINUTES
+        value: "60"
+      - key: MESSAGE_RETENTION_MINUTES
+        value: "1440"

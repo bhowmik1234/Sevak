@@ -1,108 +1,140 @@
-import google.generativeai as genai
-import os
-from app.services.vector_store import retrieve_similar_chunks
+"""RAG orchestration: rewrite -> retrieve -> verify -> generate -> verify."""
+import logging
+from typing import List, Tuple
 
-# Env config
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-model = genai.GenerativeModel(os.getenv("GOOGLE_AI_MODEL_NAME"))
+from app.config import settings
+from app.services.llm import get_judge_llm, get_llm
+from app.services.vector_store import retrieve_candidates
+from app.services.verification import check_groundedness, select_relevant
 
-# Generate Response
-def generate_answer(query: str, user_history: list = []):
-    '''
-    Takes the user's query and recent conversation history to generate a relevant response.
-    '''
+logger = logging.getLogger(__name__)
 
-    # Reterive chunk from vector database
-    retrieved_chunks = retrieve_similar_chunks(query)
-    context = "\n\n".join(retrieved_chunks)
+REFUSAL_MESSAGE = (
+    "I'm sorry — I couldn't find anything in my legal reference sources that "
+    "reliably answers this. I don't want to risk giving you incorrect legal "
+    "information.\n\n"
+    "Please consider reaching out to a qualified lawyer or your nearest free "
+    "legal aid centre (District Legal Services Authority). If you are in "
+    "immediate danger, call 112."
+)
 
-    print("context here->",context)
-    # Chat Prompt
-    chat_prompt = f"""
-        You are an advanced, empathetic, and responsible AI Legal Assistant trained in Indian law (IPC, CrPC, Constitution, civil and criminal codes, 
-        and protective acts).
+GROUNDEDNESS_CAVEAT = (
+    "\n\n_Note: parts of this answer could not be fully verified against my "
+    "legal sources. Please confirm important details with a qualified lawyer._"
+)
 
-            You help users who are victims of crime or injustice by explaining what legal protections apply, what punishments are assigned to 
-            the offender, and what realistic steps the user should take. You must write in clear English, and always be polite and supportive.
+_REWRITE_PROMPT = """Rewrite the user's latest message into a single, standalone \
+search query for a legal knowledge base. Resolve references like "it"/"that" \
+using the conversation. Reply with ONLY the query text.
 
-            ##  OBJECTIVES
+Conversation:
+{history}
 
-            1. Understand the user's situation — even if emotional or unclear.
-            2. Identify all relevant Indian laws (IPC, CrPC, POCSO, DV Act, etc.)
-            3. For each law:
-            - Explain in detail:
-                - What the law is
-                - Who it protects
-                - What actions are criminalized
-                - What punishment applies
-                - What steps the user should take
-            4. Do not copy legal jargon or sections verbatim. Use simplified, plain English.
-            5. Be sensitive and polite.
+Latest message: {query}
+Standalone query:"""
 
-            ##  RESPONSE FORMAT (Mandatory)
-            Give answer in points, and use nextline also
-            always give me in this formate only.
+_ANSWER_PROMPT = """You are an empathetic, responsible AI Legal Assistant trained \
+in Indian law (IPC, CrPC, Constitution, civil/criminal codes, and protective acts).
 
-            {context}
-            {query}       
+You help users who may be victims of crime or injustice. Use ONLY the CONTEXT \
+below to answer — do not invent laws, sections, or punishments. If the context is \
+insufficient for part of the question, say so plainly.
 
-"""
+Guidelines:
+- Identify the relevant Indian laws found in the context.
+- For each, explain in simple English: what it protects, what is criminalized, \
+the punishment, and the practical steps the user should take.
+- Be supportive and clear. Answer in points, using new lines.
 
-    # Get all the previous chat history
-    if user_history:
-        past = "\n".join(f"User: {q}\nBot: {a}" for q, a in user_history)
-        chat_prompt = f"{past}\n\n{chat_prompt}"
+CONTEXT:
+{context}
+
+CONVERSATION:
+{history}
+
+USER QUESTION: {query}
+
+ANSWER:"""
+
+
+def _format_history(history: List[Tuple[str, str]]) -> str:
+    if not history:
+        return "(none)"
+    turns = history[-settings.HISTORY_TURNS:]
+    return "\n".join(f"User: {q}\nAssistant: {a}" for q, a in turns)
+
+
+def _rewrite_query(query: str, history: List[Tuple[str, str]]) -> str:
+    if not settings.QUERY_REWRITE_ENABLED or not history:
+        return query
+    try:
+        rewritten = get_judge_llm().generate(
+            _REWRITE_PROMPT.format(history=_format_history(history), query=query),
+            temperature=0.0,
+        )
+        rewritten = rewritten.strip().splitlines()[0] if rewritten.strip() else query
+        logger.debug("Query rewritten: %r -> %r", query, rewritten)
+        return rewritten or query
+    except Exception:
+        logger.exception("Query rewrite failed; using original query.")
+        return query
+
+
+def _collect_sources(chunks: List[dict]) -> List[dict]:
+    seen, sources = set(), []
+    for c in chunks:
+        src = c.get("source")
+        section = c.get("section")
+        key = (src, section)
+        if src and key not in seen:
+            seen.add(key)
+            sources.append({"source": src, "section": section})
+    return sources
+
+
+def generate_answer(query: str, user_history: List[Tuple[str, str]] = []) -> dict:
+    """Run the full RAG pipeline. Returns {reply, sources, grounded, refused}."""
+    search_query = _rewrite_query(query, user_history)
+
+    # Retrieve + pre-generation relevance gate.
+    candidates = retrieve_candidates(search_query)
+    kept, passed = select_relevant(search_query, candidates)
+    if not passed:
+        return {"reply": REFUSAL_MESSAGE, "sources": [], "grounded": True, "refused": True}
+
+    context = "\n\n".join(c["text"] for c in kept)
+    prompt = _ANSWER_PROMPT.format(
+        context=context, history=_format_history(user_history), query=query
+    )
 
     try:
-        response = model.generate_content(chat_prompt)
-        return response.text.strip()
-    except Exception as e:
-        print("Gemini error:", e)
-        return "Sorry, I couldn't process your question right now."
+        answer = get_llm().generate(prompt, temperature=0.2)
+    except Exception:
+        logger.exception("Generation failed")
+        return {
+            "reply": "Sorry, I couldn't process your question right now.",
+            "sources": [],
+            "grounded": True,
+            "refused": False,
+        }
 
+    if not answer:
+        return {
+            "reply": "Sorry, I couldn't process your question right now.",
+            "sources": [],
+            "grounded": True,
+            "refused": False,
+        }
 
+    # Post-generation groundedness verification.
+    verdict = check_groundedness(answer, kept)
+    if not verdict["grounded"]:
+        logger.info("Answer flagged as not fully grounded: %s", verdict["unsupported"])
+        answer += GROUNDEDNESS_CAVEAT
 
-# ****************************** to use openAI **********************************************
-# import os
-# from openai import OpenAI
-# from app.services.vector_store import retrieve_similar_chunks
-
-# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-# MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo")
-
-# Generate Response
-# def generate_answer(query: str, user_history: list = []):
-#     retrieved_chunks = retrieve_similar_chunks(query)
-#     context = "\n\n".join(retrieved_chunks)
-
-#     system_prompt = """
-# You are an assistant answering questions based on the provided legal or policy context.
-
-# - When a question is asked, find the most relevant section from the context.
-# - Provide a short summary of what action should be taken in that situation.
-# - If asked about the number of available sections, list all section titles/names found in the context.
-# - If asked to explain a particular section, summarize it clearly and briefly using the available context.
-# """
-
-#     # Build messages list
-#     messages = [{"role": "system", "content": system_prompt}]
-
-#     for q, a in user_history:
-#         messages.append({"role": "user", "content": q})
-#         messages.append({"role": "assistant", "content": a})
-
-#     messages.append({
-#         "role": "user",
-#         "content": f"Context:\n{context}\n\nUser question: {query}"
-#     })
-
-#     try:
-#         response = client.chat.completions.create(
-#             model=MODEL_NAME,
-#             messages=messages,
-#             temperature=0.0
-#         )
-#         return response.choices[0].message.content.strip()
-#     except Exception as e:
-#         print("OpenAI error:", e)
-#         return "Sorry, I couldn't process your question right now."
+    return {
+        "reply": answer,
+        "sources": _collect_sources(kept),
+        "grounded": verdict["grounded"],
+        "refused": False,
+    }

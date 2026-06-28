@@ -1,33 +1,48 @@
-import spacy
+"""Lightweight sentence-based text chunking.
+
+Previously this used spaCy (`en_core_web_sm`), which pulled a large model into
+the deployment image. We split on sentence boundaries with a regex and measure
+length by word count instead — good enough for RAG chunking and dependency-free.
+"""
+import re
 from typing import List
 
-# Load spacy English model
-nlp = spacy.load("en_core_web_sm")
+# Split after ., ! or ? followed by whitespace (keeps the punctuation).
+_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
-def chunk_text(text: str, max_tokens: int = 200) -> List[str]:
-    doc = nlp(text)
-    sentences = [sent.text.strip() for sent in doc.sents]
 
-    # Intialization
-    chunks = []
-    current_chunk = []
+def _split_sentences(text: str) -> List[str]:
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return []
+    return [s.strip() for s in _SENTENCE_RE.split(text) if s.strip()]
+
+
+def _word_count(text: str) -> int:
+    return len(text.split())
+
+
+def chunk_text(text: str, max_tokens: int = 200, overlap: int = 50) -> List[str]:
+    sentences = _split_sentences(text)
+
+    chunks: List[str] = []
+    current_chunk: List[str] = []
     current_length = 0
-    overlap=50
 
     for sentence in sentences:
-        token_count = len(nlp(sentence))
-        if current_length + token_count <= max_tokens:
+        token_count = _word_count(sentence)
+
+        if current_length + token_count <= max_tokens or not current_chunk:
             current_chunk.append(sentence)
             current_length += token_count
         else:
-            # Add chunk
             chunks.append(" ".join(current_chunk))
 
-            # Create new chunk with overlap
-            overlap_sentences = []
+            # Carry over the tail of the previous chunk for context overlap.
+            overlap_sentences: List[str] = []
             overlap_length = 0
             for s in reversed(current_chunk):
-                s_len = len(nlp(s))
+                s_len = _word_count(s)
                 if overlap_length + s_len <= overlap:
                     overlap_sentences.insert(0, s)
                     overlap_length += s_len

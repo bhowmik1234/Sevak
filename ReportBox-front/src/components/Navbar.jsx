@@ -10,7 +10,7 @@ const Navbar = () => {
   const [userInfo, setUserInfo] = useState(null);
   
   const navigate = useNavigate();
-  const sessionData = sessionStorage.getItem('userId');
+  const sessionData = sessionStorage.getItem('user');
 
   useEffect(() => {
     if (sessionData) {
@@ -18,7 +18,7 @@ const Navbar = () => {
         const parsed = JSON.parse(sessionData);
         setUserInfo(parsed);
       } catch (err) {
-        console.error('Failed to parse session userId', err);
+        console.error('Failed to parse session user', err);
       }
     }
   }, [sessionData]);
@@ -36,7 +36,8 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('userId');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
     setUserInfo(null);
     setIsProfileOpen(false);
     setIsMenuOpen(false);
@@ -62,13 +63,13 @@ const Navbar = () => {
 
   const legalCategories = [
     'Criminal Law',
-    'Civil Law', 
+    'Civil Law',
     'Family Law',
     'Property Law',
-    'Labor Law',
+    'Labor & Wages',
     'Consumer Rights',
-    'Tax Law',
-    'Corporate Law'
+    'Cyber Law',
+    'Constitutional Rights'
   ];
 
   return (

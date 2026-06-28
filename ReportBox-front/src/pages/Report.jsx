@@ -110,7 +110,7 @@ const Report = () => {
       // console.log(data)
       if (data.success) {
         setIsOtpSent(true);
-        setOtpStatus("OTP sent successfully! ${data.data.phone}");
+        setOtpStatus(`OTP sent successfully! ${data.data.phone}`);
       } else {
         setOtpStatus("Failed to send OTP.");
       }

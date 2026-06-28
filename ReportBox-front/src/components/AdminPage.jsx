@@ -8,7 +8,8 @@ const AdminDashboard = () => {
   const [adminReports, setAdminReports] = useState([]);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
 
-  const ADMIN_PASSWORD = "admin123";
+  const BASE_URL = import.meta.env.VITE_BASE_URL;
+  const getAdminToken = () => sessionStorage.getItem('adminToken');
 
   // Mock data for demonstration
   const mockReports = [
@@ -55,37 +56,49 @@ const AdminDashboard = () => {
   ];
 
   useEffect(() => {
-    const isAuthenticated = sessionStorage.getItem('adminAuthenticated');
-    if (isAuthenticated === 'true') {
+    if (getAdminToken()) {
       setIsAdminAuthenticated(true);
       fetchReports();
     }
   }, []);
 
-  const handleAdminLogin = () => {
-    if (adminPassword === ADMIN_PASSWORD) {
+  const handleAdminLogin = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Invalid admin password');
+      }
+
+      sessionStorage.setItem('adminToken', data.data.token);
       setIsAdminAuthenticated(true);
-      sessionStorage.setItem('adminAuthenticated', 'true');
+      setAdminPassword('');
       fetchReports();
-    } else {
-      alert('Invalid admin password');
+    } catch (error) {
+      alert(error.message);
     }
   };
 
   const fetchReports = async () => {
     setIsLoadingReports(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/ReportForm`, {
+      const response = await fetch(`${BASE_URL}/api/ReportForm`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAdminToken()}`,
         },
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const reports = await response.json();
       setAdminReports(reports.data);
     } catch (error) {
@@ -100,6 +113,8 @@ const AdminDashboard = () => {
 
   const navigate=useNavigate();
   const handleLogout = () => {
+    sessionStorage.removeItem('adminToken');
+    setIsAdminAuthenticated(false);
     navigate('/report')
   };
 
@@ -138,10 +153,11 @@ const AdminDashboard = () => {
 
   const updateReportStatus = async (reportId, status) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/ReportForm/${reportId}`, {
+      const response = await fetch(`${BASE_URL}/api/ReportForm/${reportId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAdminToken()}`,
         },
         body: JSON.stringify({ status }),
       });

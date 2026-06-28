@@ -1,5 +1,6 @@
 import express from 'express';
 import twilio from 'twilio';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
@@ -9,9 +10,33 @@ const serviceSid = process.env.TWILIO_SERVICE_SID;
 
 const client = twilio(accountSid, authToken);
 
+// Limit OTP traffic to curb abuse / Twilio cost (per IP).
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many OTP requests. Please try again later.',
+    statusCode: 429
+  }
+});
+
+const isValidPhone = (phone) => /^[6-9]\d{9}$/.test(String(phone || ''));
+
 // Send OTP
-router.post('/send-otp', async (req, res) => {
+router.post('/send-otp', otpLimiter, async (req, res) => {
   const { phone } = req.body;
+
+  if (!isValidPhone(phone)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid phone number.',
+      errors: { phone: 'Provide a valid 10-digit Indian mobile number.' },
+      statusCode: 400
+    });
+  }
 
   try {
     await client.verify.v2
@@ -36,8 +61,17 @@ router.post('/send-otp', async (req, res) => {
 });
 
 // Verify OTP
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', otpLimiter, async (req, res) => {
   const { phone, otp } = req.body;
+
+  if (!isValidPhone(phone) || !/^\d{4,8}$/.test(String(otp || ''))) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid phone number or OTP format.',
+      errors: { input: 'Check the phone number and OTP and try again.' },
+      statusCode: 400
+    });
+  }
 
   try {
     const verificationCheck = await client.verify.v2

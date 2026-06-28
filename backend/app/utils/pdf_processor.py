@@ -1,48 +1,43 @@
-# import fitz  # PyMuPDF
-
-# def extract_text_from_pdf(file_path: str) -> str:
-#     file_path="/Users/bhowmikchawda/Desktop/resume/bhowmikResum.pdf"
-#     text = ""
-#     with fitz.open(file_path) as pdf:
-#         for i, page in enumerate(pdf):
-#             page_text = page.get_text()
-#             print(f"Page {i+1} length:", len(page_text))
-#             if not page_text.strip():
-#                 print(f"Page {i+1} is likely image-based.")
-#             else:
-#                 print(f"Page {i+1} has extractable text.")
-#             text += page_text
-#     return text.strip()
-
-import fitz  
-import requests
-from io import BytesIO
+"""PDF text extraction (PyMuPDF)."""
+import logging
 import re
+from io import BytesIO
 
-def extract_text_from_pdf(drive_url: str) -> str:
-    # Download the PDF
-    # drive_url="https://drive.google.com/file/d/1VowxyVbeIjHE-QTopjBnCfALLMopQxBp/view?usp=sharing"
-    match = re.search(r'/d/([a-zA-Z0-9_-]+)', drive_url)
-    if not match:
-        raise ValueError("Invalid Google Drive link format")
-    
-    file_id = match.group(1)
-    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+import fitz  # PyMuPDF
+import requests
 
-    # Download the PDF
-    response = requests.get(download_url)
-    if response.status_code != 200:
-        raise Exception(f"Failed to download PDF. Status code: {response.status_code}")
-    
-    text = ""
-    # Text extraction process
-    with fitz.open(stream=BytesIO(response.content), filetype="pdf") as pdf:
+logger = logging.getLogger(__name__)
+
+_DRIVE_ID_RE = re.compile(r"/d/([a-zA-Z0-9_-]+)")
+
+
+def _normalize_url(url: str) -> str:
+    """Convert a Google Drive share link to a direct-download URL.
+
+    Direct PDF URLs are returned unchanged.
+    """
+    match = _DRIVE_ID_RE.search(url)
+    if match:
+        file_id = match.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+    return url
+
+
+def extract_text_from_bytes(data: bytes) -> str:
+    text = []
+    with fitz.open(stream=BytesIO(data), filetype="pdf") as pdf:
         for i, page in enumerate(pdf):
             page_text = page.get_text()
-            print(f"Page {i+1} length:", len(page_text))
             if not page_text.strip():
-                print(f"Page {i+1} is likely image-based.")
-            else:
-                print(f"Page {i+1} has extractable text.")
-            text += page_text
-    return text.strip()
+                logger.warning("Page %d has no extractable text (likely image-based).", i + 1)
+            text.append(page_text)
+    return "".join(text).strip()
+
+
+def extract_text_from_pdf(url: str) -> str:
+    """Download a PDF (direct URL or Google Drive link) and extract its text."""
+    download_url = _normalize_url(url)
+    response = requests.get(download_url, timeout=30)
+    if response.status_code != 200:
+        raise Exception(f"Failed to download PDF. Status code: {response.status_code}")
+    return extract_text_from_bytes(response.content)

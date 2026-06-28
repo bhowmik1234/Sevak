@@ -19,10 +19,10 @@ const Login = () => {
       if (!res.ok) throw new Error('' + (data.message || 'Login failed'));
 
       if(!data.success) throw new Error(data.message || 'Login failed');
-      sessionStorage.setItem('userId', JSON.stringify({ id: data.data.userId, name: data.data.name }));
+      sessionStorage.setItem('token', data.data.token);
+      sessionStorage.setItem('user', JSON.stringify({ id: data.data.userId, name: data.data.name }));
 
-      alert('Login successful!');
-      navigate('/chat'); 
+      navigate('/chat');
     } catch (err) {
       alert(err.message);
     }
@@ -38,7 +38,7 @@ const Login = () => {
             <p className="text-slate-300 text-sm">Sign in to access your account</p>
           </div>
           
-          <div onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-200">Email</label>
               <input 
@@ -63,14 +63,13 @@ const Login = () => {
               />
             </div>
             
-            <button 
-              type="button" 
-              onClick={handleLogin}
+            <button
+              type="submit"
               className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
               Sign In
             </button>
-          </div>
+          </form>
           
           <div className="mt-6 text-center">
             <p className="text-slate-300 text-sm">
