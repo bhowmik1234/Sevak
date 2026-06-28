@@ -44,6 +44,7 @@ router.post('/ReportForm', async (req, res) => {
       description,
       priority,
       mediaURL,
+      mediaURLs,
       latitude,
       longitude
     } = req.body;
@@ -70,6 +71,7 @@ router.post('/ReportForm', async (req, res) => {
       description,
       priority,
       mediaURL,
+      mediaURLs: Array.isArray(mediaURLs) ? mediaURLs : [],
       latitude,
       longitude,
       trackingId: generateTrackingId(),

@@ -23,6 +23,7 @@ const Report = () => {
     description: "",
     priority: "medium",
     mediaURL: "",
+    mediaURLs: [],
     latitude: null,
     longitude: null,
   });
@@ -141,6 +142,28 @@ const Report = () => {
     }
   };
 
+  // Cloudinary cloud name. Prefer the clearly-named var; fall back to the old
+  // one so existing deployments keep working.
+  const CLOUDINARY_CLOUD =
+    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ||
+    import.meta.env.VITE_CLOUDINARY_KEY;
+
+  const uploadToCloudinary = async (file) => {
+    const fileType = file.type.startsWith("video/") ? "video" : "image";
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", "ReportBox");
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${fileType}/upload`,
+      { method: "POST", body: data }
+    );
+    if (!res.ok) {
+      throw new Error(`Upload failed: ${res.status}`);
+    }
+    const result = await res.json();
+    return result.secure_url;
+  };
+
   const handleFileUpload = async (e) => {
     const selectedFiles = Array.from(e.target.files);
     const validFiles = selectedFiles.filter((file) => {
@@ -155,32 +178,25 @@ const Report = () => {
       return;
     }
 
-    setFiles((prev) => [...prev, ...validFiles].slice(0, 5));
+    // Respect the 5-file cap across multiple selections.
+    const toUpload = validFiles.slice(0, Math.max(0, 5 - files.length));
+    if (toUpload.length === 0) {
+      alert("You can attach up to 5 files.");
+      return;
+    }
+
     setIsUploading(true);
-
     try {
-      const file = validFiles[0];
-      const data = new FormData();
-      data.append("file", file);
-      data.append("upload_preset", "ReportBox");
-      data.append("cloud_name", `${import.meta.env.VITE_CLOUDINARY_KEY}`);
-
-      const fileType = file.type.startsWith("video/") ? "video" : "image";
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${
-        import.meta.env.VITE_CLOUDINARY_KEY
-      }/${fileType}/upload`;
-
-      const res = await fetch(uploadUrl, { method: "POST", body: data });
-
-      if (!res.ok) {
-        throw new Error(`Upload failed: ${res.status}`);
-      }
-
-      const uploadedResult = await res.json();
-      setFormData((prev) => ({ ...prev, mediaURL: uploadedResult.secure_url }));
+      // Upload every selected file, not just the first.
+      const urls = await Promise.all(toUpload.map(uploadToCloudinary));
+      setFiles((prev) => [...prev, ...toUpload].slice(0, 5));
+      setFormData((prev) => {
+        const mediaURLs = [...(prev.mediaURLs || []), ...urls].slice(0, 5);
+        return { ...prev, mediaURLs, mediaURL: mediaURLs[0] || "" };
+      });
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Failed to upload file. Please try again.");
+      alert("Failed to upload one or more files. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -188,9 +204,10 @@ const Report = () => {
 
   const removeFile = (index) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
-    if (index === 0) {
-      setFormData((prev) => ({ ...prev, mediaURL: "" }));
-    }
+    setFormData((prev) => {
+      const mediaURLs = (prev.mediaURLs || []).filter((_, i) => i !== index);
+      return { ...prev, mediaURLs, mediaURL: mediaURLs[0] || "" };
+    });
   };
 
   const handleSubmit = async (e) => {

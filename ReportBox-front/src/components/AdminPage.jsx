@@ -346,18 +346,27 @@ const AdminDashboard = () => {
                       </p>
                     </div>
                     
-                    {report.mediaURL && (
+                    {(report.mediaURLs?.length > 0 || report.mediaURL) && (
                       <div className="mb-6">
                         <p className="text-blue-400 font-medium mb-3">Attached Evidence:</p>
-                        <a
-                          href={report.mediaURL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-300 rounded-lg hover:bg-blue-600/30 transition-all duration-200 border border-blue-500/30"
-                        >
-                          <Eye className="w-4 h-4" />
-                          View Attachment
-                        </a>
+                        <div className="flex flex-wrap gap-2">
+                          {(report.mediaURLs?.length > 0
+                            ? report.mediaURLs
+                            : [report.mediaURL]
+                          ).map((url, i) => (
+                            <a
+                              key={url || i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-300 rounded-lg hover:bg-blue-600/30 transition-all duration-200 border border-blue-500/30"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Attachment
+                              {report.mediaURLs?.length > 1 ? ` ${i + 1}` : ""}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
 

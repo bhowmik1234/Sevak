@@ -8,6 +8,11 @@ services:
     buildCommand: "pip install -r requirements.txt && prisma generate && prisma migrate deploy"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      # Pin Python: Render's default (3.14) has no prebuilt pydantic-core wheel,
+      # forcing a Rust source build that fails on Render's read-only FS. 3.12 has
+      # wheels for every dependency. (Also pinned via backend/.python-version.)
+      - key: PYTHON_VERSION
+        value: "3.12.7"
       # Set these in the Render dashboard (sync: false = not stored in repo).
       - key: DATABASE_URL
         sync: false

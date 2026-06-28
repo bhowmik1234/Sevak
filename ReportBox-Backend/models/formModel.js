@@ -37,6 +37,11 @@ const formData = new Schema({
   mediaURL: {
     type: String,
   },
+  // All uploaded media (up to 5). mediaURL stays as the first for compatibility.
+  mediaURLs: {
+    type: [String],
+    default: [],
+  },
   status: {
     type: String,
     enum: ["pending", "in-progress", "resolved"],
