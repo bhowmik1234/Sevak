@@ -3,9 +3,10 @@ services:
   - type: web
     name: sevak-fastapi
     env: python
-    # `prisma migrate deploy` applies pending migrations (incl. the Feedback
-    # table) to the database during the build.
-    buildCommand: "pip install -r requirements.txt && prisma generate && prisma migrate deploy"
+    # `prisma py fetch` downloads the query-engine binary into the persisted
+    # PRISMA_BINARY_CACHE_DIR (see below); `prisma migrate deploy` applies
+    # pending migrations (incl. Feedback) to the database during the build.
+    buildCommand: "pip install -r requirements.txt && prisma py fetch && prisma generate && prisma migrate deploy"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       # Pin Python: Render's default (3.14) has no prebuilt pydantic-core wheel,
@@ -13,6 +14,11 @@ services:
       # wheels for every dependency. (Also pinned via backend/.python-version.)
       - key: PYTHON_VERSION
         value: "3.12.7"
+      # Cache the Prisma query-engine binary INSIDE the persisted project dir.
+      # The default (~/.cache = /opt/render/.cache) is wiped between build and
+      # runtime, causing "BinaryNotFoundError" at startup.
+      - key: PRISMA_BINARY_CACHE_DIR
+        value: "/opt/render/project/src/.prisma-binaries"
       # Set these in the Render dashboard (sync: false = not stored in repo).
       - key: DATABASE_URL
         sync: false
