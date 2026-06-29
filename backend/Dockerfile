@@ -4,9 +4,11 @@
 # A Docker image makes build == runtime, so the engine is baked in and always found.
 FROM python:3.12-slim
 
-# libssl for the Prisma query engine; ca-certificates for downloads.
+# libssl: Prisma query engine. ca-certificates: HTTPS downloads.
+# libatomic1: the Node binary Prisma fetches (via nodeenv) links against it,
+# and python:slim doesn't ship it -> "libatomic.so.1: cannot open shared object".
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      openssl ca-certificates \
+      openssl ca-certificates libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
