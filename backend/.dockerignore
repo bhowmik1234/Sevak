@@ -1,0 +1,13 @@
+# Keep the image small and the build clean.
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+.prisma-binaries
