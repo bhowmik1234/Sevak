@@ -1,5 +1,7 @@
 import logging
 import os
+import subprocess
+import sys
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -57,8 +59,29 @@ app.include_router(documents.router, prefix="/documents", tags=["Documents"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
 
+def _ensure_prisma_engine() -> None:
+    """Make sure the Prisma query-engine binary exists at runtime.
+
+    Render's build cache (~/.cache) is not persisted into the running container,
+    so the engine downloaded during the build can be missing at startup. Fetching
+    it here downloads it into the same runtime cache that ``prisma.connect()``
+    reads from. Idempotent — a no-op once the binary is present.
+    """
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "prisma", "py", "fetch"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        logger.info("Prisma query engine is ready.")
+    except Exception:
+        logger.exception("prisma py fetch failed; will still try to connect.")
+
+
 @app.on_event("startup")
 async def startup():
+    _ensure_prisma_engine()
     await prisma.connect()
 
     async def scheduled_cleanup():

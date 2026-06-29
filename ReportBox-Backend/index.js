@@ -17,13 +17,19 @@ app.use(cors(corsOptions));
 
 app.use(express.json());
 
-// Ensure the (cached) DB connection is ready before handling any request.
+// Health check — needs no DB, so it confirms the server is up even if Mongo is down.
+app.get('/', (req, res) => {
+  res.json({ success: true, message: 'ReportBox API is running.' });
+});
+
+// Ensure the (cached) DB connection is ready before the data routes.
 // Works for both the long-lived local/Render server and Vercel serverless.
 app.use(async (req, res, next) => {
   try {
     await connectDB();
     next();
-  } catch {
+  } catch (err) {
+    console.error('DB connection failed:', err.message);
     res.status(503).json({
       success: false,
       message: 'Database unavailable. Please try again shortly.',
@@ -35,10 +41,6 @@ app.use(async (req, res, next) => {
 app.use('/api', form);
 app.use('/api', otpRoutes);
 app.use('/api', adminRoutes);
-
-app.get('/', (req, res) => {
-  res.send('hello');
-});
 
 // On Vercel the platform invokes the exported app, so binding a port is wrong.
 // Only listen when running directly (local dev / Render).
